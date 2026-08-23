@@ -1,7 +1,7 @@
 # 🛒 POSPro - Modern Point of Sale & Mini Payment Gateway QRIS System
 
 <p align="center">
-  <img src="https://images.unsplash.com/photo-1556742049-0a67c5574f73?w=1200&auto=format&fit=crop&q=80" width="100%" alt="POSPro Banner" style="border-radius: 16px;">
+<img width="1024" height="123" alt="image" src="https://github.com/user-attachments/assets/d9089935-d0fa-4849-8e3b-6d6f4c773ca8" />
 </p>
 
 <p align="center">
