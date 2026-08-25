@@ -16,6 +16,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/', [POSController::class, 'index'])->name('pos.index');
     Route::post('/checkout', [POSController::class, 'checkout'])->name('pos.checkout');
     Route::get('/status/{orderId}', [POSController::class, 'checkStatus'])->name('pos.status');
+    Route::post('/pos/manual-settle/{orderId}', [POSController::class, 'manualSettle'])->name('pos.manual-settle');
     Route::get('/print-receipt/{orderId}', [POSController::class, 'printReceipt'])->name('pos.receipt');
 
     // Sales History & PDF Export (Accessible by Kasir & Admin)

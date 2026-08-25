@@ -18,6 +18,7 @@ class SettingController extends Controller
             'tax_rate' => Setting::get('tax_rate', '11'),
             'enable_service' => Setting::get('enable_service', '0'),
             'service_rate' => Setting::get('service_rate', '5'),
+            'qris_expires_minutes' => Setting::get('qris_expires_minutes', '15'),
         ];
 
         return view('admin.settings.index', compact('settings'));
@@ -32,6 +33,7 @@ class SettingController extends Controller
             'receipt_footer' => 'nullable|string|max:500',
             'tax_rate' => 'nullable|numeric|min:0|max:100',
             'service_rate' => 'nullable|numeric|min:0|max:100',
+            'qris_expires_minutes' => 'nullable|integer|min:1|max:1440',
         ]);
 
         Setting::set('store_name', $request->store_name);
@@ -45,6 +47,9 @@ class SettingController extends Controller
         Setting::set('enable_service', $request->boolean('enable_service') ? '1' : '0');
         Setting::set('service_rate', $request->filled('service_rate') ? $request->service_rate : '5');
 
-        return redirect()->route('admin.settings')->with('success', 'Pengaturan toko, pajak PPN, dan biaya layanan berhasil diperbarui!');
+        // QRIS Expiration
+        Setting::set('qris_expires_minutes', $request->filled('qris_expires_minutes') ? $request->qris_expires_minutes : '15');
+
+        return redirect()->route('admin.settings')->with('success', 'Pengaturan toko, pajak PPN, biaya layanan, dan expired QRIS berhasil diperbarui!');
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Category;
@@ -95,6 +96,7 @@ class POSController extends Controller
             'notes' => $request->notes,
             'status' => ($paymentMethod === 'CASH') ? 'PAID' : 'PENDING',
             'payment_method' => $paymentMethod,
+            'settlement_type' => ($paymentMethod === 'CASH') ? 'MANUAL_CASHIER' : 'AUTOMATIC_WEBHOOK',
         ]);
 
         // 2. Save Items & Deduct Stock only if manage_stock is true
@@ -119,14 +121,15 @@ class POSController extends Controller
         if ($paymentMethod === 'QRIS') {
             $nodeJsUrl = env('PAYMENT_GATEWAY_URL', 'http://localhost:3000/api/v1/qris/generate');
             $apiKey = env('PAYMENT_GATEWAY_API_KEY', 'secret_key_hp_123');
+            $expiresInMinutes = (int) Setting::get('qris_expires_minutes', '15');
 
             try {
                 $response = Http::withHeaders([
                     'x-api-key' => $apiKey
-                ])->timeout(5)->post($nodeJsUrl, [
-                    'amount' => $grandTotal,
-                    'invoice_id' => $orderId,
-                    'expires_in_minutes' => 30
+                ])->timeout(8)->post($nodeJsUrl, [
+                    'amount' => (int) $grandTotal,
+                    'invoice_id' => (string) $orderId,
+                    'expires_in_minutes' => (int) $expiresInMinutes,
                 ]);
 
                 if ($response->successful()) {
@@ -149,6 +152,60 @@ class POSController extends Controller
         return redirect()->route('pos.receipt', ['orderId' => $orderId])->with('success', 'Transaksi Tunai Berhasil!');
     }
 
+    public function manualSettle(Request $request, $orderId)
+    {
+        $order = Order::where('order_id', $orderId)->firstOrFail();
+
+        if ($order->status === 'PAID') {
+            return redirect()->route('pos.receipt', ['orderId' => $orderId]);
+        }
+
+        $request->validate([
+            'payment_proof' => 'nullable|image|max:51200',
+            'payment_proof_base64' => 'nullable|string',
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        $proofPath = null;
+
+        // 1. Handle file upload (from input file / camera capture)
+        if ($request->hasFile('payment_proof')) {
+            $proofPath = $request->file('payment_proof')->store('proofs', 'public');
+        }
+        // 2. Handle base64 snapshot from web camera
+        elseif (!empty($request->payment_proof_base64) && str_starts_with($request->payment_proof_base64, 'data:image')) {
+            $imageParts = explode(';base64,', $request->payment_proof_base64);
+            if (count($imageParts) === 2) {
+                $imageTypeAux = explode('image/', $imageParts[0]);
+                $imageType = $imageTypeAux[1] ?? 'png';
+                $imageBase64 = base64_decode($imageParts[1]);
+                $filename = 'proofs/' . uniqid() . '.' . $imageType;
+                Storage::disk('public')->put($filename, $imageBase64);
+                $proofPath = $filename;
+            }
+        }
+
+        $order->status = 'PAID';
+        $order->settlement_type = 'MANUAL_CASHIER';
+        $order->settled_by = Auth::id();
+        if ($proofPath) {
+            $order->payment_proof = $proofPath;
+        }
+        if ($request->filled('notes')) {
+            $order->notes = $order->notes ? ($order->notes . ' | ' . $request->notes) : $request->notes;
+        }
+        $order->save();
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'status' => 'success',
+                'redirect_url' => route('pos.receipt', ['orderId' => $orderId]),
+            ]);
+        }
+
+        return redirect()->route('pos.receipt', ['orderId' => $orderId])->with('success', 'Pembayaran QRIS berhasil dikonfirmasi secara manual!');
+    }
+
     public function webhookCallback(Request $request)
     {
         $backendApiKey = $request->header('x-api-key');
@@ -165,6 +222,7 @@ class POSController extends Controller
 
             if ($order && $order->status === 'PENDING') {
                 $order->status = 'PAID';
+                $order->settlement_type = 'AUTOMATIC_WEBHOOK';
                 $order->save();
             }
         }

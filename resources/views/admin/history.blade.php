@@ -225,10 +225,26 @@
                                 <span class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold {{ $order->status === 'PAID' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200' }}">
                                     {{ $order->status }}
                                 </span>
+                                @if($order->settlement_type === 'MANUAL_CASHIER' && $order->payment_method === 'QRIS')
+                                    <span class="block text-[9px] text-amber-600 font-bold mt-1">
+                                        <i class="fa-solid fa-user-check"></i> Verif Manual
+                                    </span>
+                                @endif
                             </td>
-                            <td class="py-3 px-3 text-right no-print whitespace-nowrap">
+                            <td class="py-3 px-3 text-right no-print whitespace-nowrap space-x-1">
+                                @if($order->payment_proof)
+                                    <a 
+                                        href="{{ asset('storage/' . $order->payment_proof) }}" 
+                                        target="_blank" 
+                                        class="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl font-bold text-xs transition inline-flex items-center space-x-1 shadow-sm" 
+                                        title="Lihat Foto Bukti Bayar"
+                                    >
+                                        <i class="fa-solid fa-image"></i>
+                                        <span>Bukti</span>
+                                    </a>
+                                @endif
                                 <a href="{{ route('pos.receipt', $order->order_id) }}" target="_blank" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition inline-flex items-center space-x-1.5 shadow-sm" title="Cetak Ulang Struk">
-                                    <i class="fa-solid fa-print text-slate-500"></i>
+                                    <i class="fa-solid fa-receipt"></i>
                                     <span>Struk</span>
                                 </a>
                             </td>

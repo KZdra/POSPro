@@ -25,6 +25,9 @@ class Order extends Model
         'service',
         'service_percent',
         'notes',
+        'payment_proof',
+        'settlement_type',
+        'settled_by',
         'status',
         'payment_method',
     ];
@@ -48,8 +51,24 @@ class Order extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function settledByUser()
+    {
+        return $this->belongsTo(User::class, 'settled_by');
+    }
+
     public function items()
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function getPaymentProofUrlAttribute()
+    {
+        if (!$this->payment_proof) {
+            return null;
+        }
+        if (filter_var($this->payment_proof, FILTER_VALIDATE_URL)) {
+            return $this->payment_proof;
+        }
+        return asset('storage/' . $this->payment_proof);
     }
 }
