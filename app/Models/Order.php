@@ -20,6 +20,7 @@ class Order extends Model
         'cash_change',
         'discount',
         'discount_percent',
+        'coupon_code',
         'tax',
         'tax_percent',
         'service',
@@ -30,6 +31,9 @@ class Order extends Model
         'settled_by',
         'status',
         'payment_method',
+        'void_reason',
+        'void_by',
+        'voided_at',
     ];
 
     protected $casts = [
@@ -44,6 +48,7 @@ class Order extends Model
         'tax_percent' => 'decimal:2',
         'service' => 'decimal:2',
         'service_percent' => 'decimal:2',
+        'voided_at' => 'datetime',
     ];
 
     public function user()
@@ -56,9 +61,19 @@ class Order extends Model
         return $this->belongsTo(User::class, 'settled_by');
     }
 
+    public function voidedByUser()
+    {
+        return $this->belongsTo(User::class, 'void_by');
+    }
+
     public function items()
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function coupon()
+    {
+        return $this->belongsTo(Coupon::class, 'coupon_code', 'code');
     }
 
     public function getPaymentProofUrlAttribute()

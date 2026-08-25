@@ -11,6 +11,7 @@ use App\Models\Product;
 use App\Models\Category;
 use App\Models\OrderItem;
 use App\Models\Setting;
+use App\Models\Coupon;
 
 class POSController extends Controller
 {
@@ -18,15 +19,53 @@ class POSController extends Controller
     {
         $categories = Category::withCount('products')->get();
         $products = Product::with('category')->where('is_active', true)->get();
+        $activeCoupons = Coupon::with('category')
+            ->where('is_active', true)
+            ->where(function ($q) {
+                $q->whereNull('expires_at')->orWhere('expires_at', '>=', now());
+            })
+            ->get();
         
         $taxSettings = [
             'enable_tax' => Setting::get('enable_tax', '0') == '1',
             'tax_rate' => floatval(Setting::get('tax_rate', '11')),
             'enable_service' => Setting::get('enable_service', '0') == '1',
             'service_rate' => floatval(Setting::get('service_rate', '5')),
+            'enable_kitchen_receipt' => Setting::get('enable_kitchen_receipt', '1') == '1',
         ];
 
-        return view('pos.index', compact('categories', 'products', 'taxSettings'));
+        return view('pos.index', compact('categories', 'products', 'taxSettings', 'activeCoupons'));
+    }
+
+    public function validateCoupon(Request $request)
+    {
+        $request->validate([
+            'code' => 'required|string',
+            'subtotal' => 'required|numeric|min:0',
+        ]);
+
+        $code = strtoupper(trim($request->code));
+        $coupon = Coupon::with('category')->where('code', $code)->first();
+
+        if (!$coupon) {
+            return response()->json([
+                'valid' => false,
+                'message' => "Kode kupon \"{$code}\" tidak ditemukan atau sudah tidak berlaku!"
+            ], 404);
+        }
+
+        $items = [];
+        if ($request->filled('items')) {
+            $items = is_array($request->items) ? $request->items : (json_decode($request->items, true) ?? []);
+        }
+
+        $result = $coupon->calculateDiscount($items, floatval($request->subtotal));
+
+        if (!$result['valid']) {
+            return response()->json($result, 422);
+        }
+
+        return response()->json($result);
     }
 
     public function checkout(Request $request)
@@ -38,6 +77,7 @@ class POSController extends Controller
             'cash_received' => 'nullable|numeric|min:0',
             'discount' => 'nullable|numeric|min:0',
             'discount_percent' => 'nullable|numeric|min:0|max:100',
+            'coupon_code' => 'nullable|string|max:50',
             'tax' => 'nullable|numeric|min:0',
             'tax_percent' => 'nullable|numeric|min:0|max:100',
             'service' => 'nullable|numeric|min:0',
@@ -60,6 +100,17 @@ class POSController extends Controller
 
         $discountPercent = floatval($request->discount_percent ?? 0);
         $discountAmount = floatval($request->discount ?? ($baseTotal * ($discountPercent / 100)));
+        
+        // Handle Coupon if applied
+        $couponCode = null;
+        if ($request->filled('coupon_code')) {
+            $coupon = Coupon::where('code', strtoupper(trim($request->coupon_code)))->first();
+            if ($coupon && $coupon->is_active) {
+                $couponCode = $coupon->code;
+                $coupon->increment('used_count');
+            }
+        }
+
         $subtotalAfterDiscount = max(0, $baseTotal - $discountAmount);
 
         $servicePercent = floatval($request->service_percent ?? 0);
@@ -69,7 +120,7 @@ class POSController extends Controller
         $taxAmount = floatval($request->tax ?? (($subtotalAfterDiscount + $serviceAmount) * ($taxPercent / 100)));
 
         $paymentMethod = $request->payment_method;
-        $uniqueCode = ($paymentMethod === 'QRIS') ? rand(1, 999) : 0;
+        $uniqueCode = ($paymentMethod === 'QRIS') ? rand(1, 99) : 0;
         $grandTotal = $subtotalAfterDiscount + $serviceAmount + $taxAmount + $uniqueCode;
         
         $cashReceived = floatval($request->cash_received ?? $grandTotal);
@@ -85,6 +136,7 @@ class POSController extends Controller
             'base_total' => $baseTotal,
             'discount' => $discountAmount,
             'discount_percent' => $discountPercent,
+            'coupon_code' => $couponCode,
             'service' => $serviceAmount,
             'service_percent' => $servicePercent,
             'tax' => $taxAmount,
@@ -108,6 +160,7 @@ class POSController extends Controller
                 'qty' => $item['qty'],
                 'price' => $item['price'],
                 'subtotal' => $item['price'] * $item['qty'],
+                'notes' => !empty($item['notes']) ? trim($item['notes']) : null,
             ]);
 
             $product = Product::find($item['id']);
@@ -242,6 +295,13 @@ class POSController extends Controller
     public function printReceipt($orderId)
     {
         $order = Order::with(['items', 'user'])->where('order_id', $orderId)->firstOrFail();
-        return view('pos.receipt', compact('order'));
+        $enableKitchenReceipt = Setting::get('enable_kitchen_receipt', '1') == '1';
+        return view('pos.receipt', compact('order', 'enableKitchenReceipt'));
+    }
+
+    public function kitchenReceipt($orderId)
+    {
+        $order = Order::with(['items', 'user'])->where('order_id', $orderId)->firstOrFail();
+        return view('pos.kitchen_receipt', compact('order'));
     }
 }

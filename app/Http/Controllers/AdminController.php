@@ -51,7 +51,7 @@ class AdminController extends Controller
 
     public function history(Request $request)
     {
-        $query = Order::with('items', 'user')->latest();
+        $query = Order::with(['items', 'user', 'voidedByUser', 'settledByUser'])->latest();
 
         // Date Range Filtering
         if ($request->filled('start_date')) {
@@ -79,8 +79,42 @@ class AdminController extends Controller
         $paidCount = $orders->where('status', 'PAID')->count();
         $cashCount = $orders->where('status', 'PAID')->where('payment_method', 'CASH')->count();
         $qrisCount = $orders->where('status', 'PAID')->where('payment_method', 'QRIS')->count();
+        $voidCount = $orders->where('status', 'VOID')->count();
 
-        return view('admin.history', compact('orders', 'totalRevenue', 'paidCount', 'cashCount', 'qrisCount'));
+        return view('admin.history', compact('orders', 'totalRevenue', 'paidCount', 'cashCount', 'qrisCount', 'voidCount'));
+    }
+
+    public function voidOrder(Request $request, $orderId)
+    {
+        $order = Order::with('items.product')->where('order_id', $orderId)->firstOrFail();
+
+        if ($order->status === 'VOID') {
+            return back()->with('error', 'Pesanan ini sudah dibatalkan (VOID) sebelumnya.');
+        }
+
+        $request->validate([
+            'void_reason' => 'required|string|max:500',
+        ], [
+            'void_reason.required' => 'Alasan pembatalan / void wajib diisi!',
+        ]);
+
+        // 1. Restock items that have manage_stock enabled
+        foreach ($order->items as $item) {
+            $product = $item->product ?? Product::find($item->product_id);
+            if ($product && $product->manage_stock) {
+                $product->increment('stock', $item->qty);
+            }
+        }
+
+        // 2. Mark order as VOID
+        $order->update([
+            'status' => 'VOID',
+            'void_reason' => trim($request->void_reason),
+            'void_by' => auth()->id(),
+            'voided_at' => now(),
+        ]);
+
+        return back()->with('success', "Order #{$order->order_id} berhasil dibatalkan (VOID) dan stok produk telah dikembalikan.");
     }
 
     public function exportPdf(Request $request)

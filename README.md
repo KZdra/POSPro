@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>Sistem Aplikasi Kasir (Point of Sale) Full-Stack Modern berbasis Laravel 12, Alpine.js, Tailwind CSS, dan Mini Payment Gateway QRIS Dinamis.</strong>
+  <strong>Sistem Aplikasi Kasir (Point of Sale) Full-Stack Modern berbasis Laravel 12, Alpine.js, Tailwind CSS, Mini Payment Gateway QRIS Dinamis, dan Modul F&B / Retail Lengkap.</strong>
 </p>
 
 <p align="center">
@@ -24,28 +24,62 @@
 - **Tampilan Responsif Multi-Device**:
   - **Desktop / Tablet**: Tampilan berdampingan (*Side-by-Side* Katalog 70% & Keranjang 30%).
   - **Smartphone (Portrait)**: Tampilan katalog 2 kolom, *floating bar* total pesanan, dan *drawer cart* geser yang ramah sentuhan jari.
-- **Pencarian Cepat & Barcode Scanner**: Dukungan scan barcode dengan enter otomatis masuk ke keranjang, serta live search berdasarkan nama menu dan SKU.
+- **Pencarian Cepat & Barcode Scanner**: Dukungan scan barcode fisik / scanner bluetooth dengan enter otomatis masuk ke keranjang, serta live search berdasarkan nama menu dan SKU.
 - **Audio Feedback**: Bunyi *beep sound effect* instan saat memilih menu, mengubah jumlah item, atau menekan numpad.
 - **Parkir Pesanan (Hold & Recall Orders)**: Fitur menahan pesanan pelanggan yang belum selesai dan memanggilnya kembali kapan saja (tersimpan di *localStorage*).
 - **Wajib Nama Pelanggan / Nomor Meja**: Modal input nama pelanggan dengan preset instan (*Dine In, Take Away, Meja 1-3, Ojol*).
-- **Diskon Berbasis Persen (%)**: Dilengkapi tombol preset cepat `0%`, `5%`, `10%`, `20%`, `50%` dengan kalkulasi potongan Rupiah secara live.
 - **Numpad Sentuh & Presets Uang Pas**: Input nominal tunai cepat (*Uang Pas, 10k, 20k, 50k, 100k, 200k*) dan kalkulasi uang kembalian otomatis.
 
 ---
 
-### 2. ☕ All-in-One Mode (Cafe/Resto vs Warung/Retail)
-Setiap produk dapat diatur jenis pengelolaannya:
-- **Mode Cafe / Resto (`Kelola Stok: OFF`)**:
-  - Untuk menu olahan/masakan (*Kopi, Espresso, Makanan Olahan*).
-  - Menampilkan badge **"Ready"** ungu di katalog dan tidak membatasi pesanan.
-- **Mode Warung / Retail (`Kelola Stok: ON`)**:
-  - Untuk produk fisik/kemasan (*Snack, Minuman Botol, Rokok*).
-  - Menampilkan badge **"Stok: X"** (kuning jika &le; 5, merah jika habis).
-  - Otomatis memotong kuantiti stok saat checkout berhasil.
+### 2. 🎟️ Kupon Promo, Voucher Kategori & Pemindai QR Kamera
+- **Kupon Global & Spesifik Kategori**:
+  - Kupon dapat berlaku untuk **Semua Menu** atau **Kategori Tertentu** (misal: *Khusus Kategori Coffee & Espresso*, *Khusus Makanan*, dll).
+  - Potongan harga hanya akan dihitung dari item dalam keranjang yang memenuhi syarat kategori kupon.
+- **📷 Live Camera QR Scanner (Kamera HP / Laptop Bawaan)**:
+  - Tombol **"Scan QR"** langsung menyalakan kamera perangkat menggunakan library `html5-qrcode`.
+  - Mengarahkan QR kupon ke kamera langsung mendeteksi kode dan menerapkan diskon secara otomatis.
+- **Kartu Voucher One-Tap**: Kasir dapat langsung menekan tombol **"Gunakan"** pada daftar kupon aktif yang tersedia.
+- **Diskon Manual (%)**: Input persentase diskon fleksibel dengan preset cepat `0%`, `5%`, `10%`, `20%`, `50%`.
+- **Admin Kupon (`/admin/coupons`)**: Master data CRUD kupon, kuota penggunaan, masa berlaku, dan generator gambar QR code yang bisa dicetak/diunduh.
 
 ---
 
-### 3. 🎨 Master Kategori dengan Pewarnaan Standar Industri
+### 3. 📝 Catatan Khusus Per Item (Item Notes / Modifiers)
+- Kasir dapat menambahkan catatan khusus pada menu (*misal: "Less Sugar", "Pedas Sedang", "Tanpa Bawang", "Es Sedikit"*).
+- Fitur ini khusus disediakan untuk **menu tanpa stok / cafe & resto** (`manage_stock = false`).
+- Catatan menu tersimpan ke database detail pesanan dan ikut tercetak rapi pada **Struk Kasir** maupun **Struk Dapur (KOT)**.
+
+---
+
+### 4. 🍳 Struk Tiket Dapur / Bar (Kitchen Order Ticket - KOT)
+- **Tombol Cetak Struk Dapur (`/print-kitchen/{orderId}`)**:
+  - Struk format thermal khusus kru dapur dan barista yang hanya menampilkan **Nomor Meja/Pelanggan, Waktu Order, Daftar Menu, Kuantiti, dan Catatan Khusus** (tanpa memunculkan harga atau total tagihan).
+- **Opsi Aktif/Nonaktif di Pengaturan**: Admin dapat mengaktifkan atau menonaktifkan fitur cetak struk dapur melalui menu **Settings** (`/admin/settings`).
+
+---
+
+### 5. 🚫 Void / Pembatalan Transaksi dengan Pengembalian Stok Otomatis
+- Transaksi yang salah ketik atau dibatalkan pelanggan dapat di-*void* melalui menu **Riwayat Transaksi** (`/admin/history`).
+- **Input Alasan Pembatalan**: Kasir/Admin wajib menginput alasan *void* (misal: *"Salah Meja"*, *"Pelanggan Membatalkan"*).
+- **Auto Stock Return**: Sistem secara otomatis mengembalikan jumlah kuantiti stok produk fisik (`stock += qty`) ke database inventori.
+- Transaksi berstatus `VOID` otomatis dieksklusi dari kalkulasi total omset dan laba bersih di dashboard KPI.
+
+---
+
+### 6. ☕ All-in-One Mode (Cafe/Resto vs Warung/Retail)
+Setiap produk dapat diatur jenis pengelolaannya:
+- **Mode Cafe / Resto (`Kelola Stok: OFF`)**:
+  - Untuk menu olahan/masakan (*Kopi, Espresso, Makanan Olahan*).
+  - Menampilkan badge **"Ready"** di katalog dan tidak membatasi pesanan. Barcode bersifat opsional.
+- **Mode Warung / Retail (`Kelola Stok: ON`)**:
+  - Untuk produk fisik/kemasan (*Snack, Minuman Botol, Rokok*).
+  - Menampilkan badge **"Stok: X"** (kuning jika &le; 5, merah jika habis).
+  - Otomatis memotong kuantiti stok saat transaksi berhasil.
+
+---
+
+### 7. 🎨 Master Kategori dengan Pewarnaan Visual Standar F&B
 Mendukung 9 palet warna visual standar F&B & Retail POS:
 - 🟤 **Amber / Cokelat**: Kopi, Espresso, Roti Gandum
 - 🟠 **Oranye**: Makanan Utama, Fast Food, Gorengan
@@ -59,7 +93,7 @@ Mendukung 9 palet warna visual standar F&B & Retail POS:
 
 ---
 
-### 4. 💳 Pembayaran Fleksibel (Tunai & QRIS Gateway)
+### 8. 💳 Pembayaran Fleksibel (Tunai & QRIS Gateway)
 - **Tunai (Cash)**: 100% mandiri tanpa ketergantungan server eksternal, langsung lunas dan mencetak struk kasir.
 - **QRIS Dinamis**: Terintegrasi dengan Node.js Payment Gateway:
   - Generate gambar QRIS otomatis dengan tambahan *Kode Unik* (misal: Rp 15.000 + 96 = Rp 15.096).
@@ -68,71 +102,65 @@ Mendukung 9 palet warna visual standar F&B & Retail POS:
 
 ---
 
-### 5. 🧾 Struk Thermal & Rekapitulasi Laporan PDF
-- **Struk Thermal Kasir (`/print-receipt/{orderId}`)**:
-  - Dioptimalkan khusus untuk printer thermal **58mm** dan **80mm** (CSS `@media print`).
-  - Menampilkan identitas toko, rincian menu, diskon %, biaya layanan %, PPN %, kode unik, tunai diterima, kembalian, dan catatan kaki.
-- **Laporan Rekapitulasi PDF Resmi (`/admin/history/export-pdf`)**:
-  - Menggunakan engine **DomPDF**.
-  - Kop resmi toko, matriks KPI finansial (Gross, Diskon, Layanan, PPN, Net), tabel 5 menu terlaris, rincian seluruh pesanan, dan kolom tanda tangan pengesahan.
+### 9. 🧾 Struk Thermal & Rekapitulasi Laporan PDF
+- **Struk Kasir (`/print-receipt/{orderId}`)**: Khusus printer thermal **58mm** dan **80mm** (CSS `@media print`), memuat identitas toko, rincian menu, catatan item, kupon voucher, diskon, PPN, biaya layanan, dan kembalian.
+- **Struk Dapur (`/print-kitchen/{orderId}`)**: Khusus kru dapur dan bar tanpa memuat nominal harga.
+- **Laporan PDF Rekapitulasi Penjualan (`/admin/history/export-pdf`)**: Format resmi DomPDF dengan matriks KPI finansial, top menu terlaris, rincian transaksi, dan kolom tanda tangan pengesahan.
 
 ---
 
-### 6. 🏛️ Pengaturan Pajak PPN & Biaya Layanan (`/admin/settings`)
-- Pengaturan identitas toko (Nama Toko, Alamat Lengkap, Nomor Telepon/WhatsApp, Catatan Kaki Struk).
-- **Pajak PPN**: Opsi aktif/non-aktif (*Toggle Switch*) dan tarif persentase custom (default `11%`).
-- **Biaya Layanan (Service Charge)**: Opsi aktif/non-aktif (*Toggle Switch*) dan tarif persentase custom (default `5%`).
+### 10. 🏛️ Pengaturan Pajak PPN, Service Charge & Dapur (`/admin/settings`)
+- Pengaturan identitas toko (Nama Toko, Alamat Lengkap, Nomor WhatsApp, Catatan Kaki Struk).
+- **Pajak PPN**: Opsi toggle switch dan persentase custom (default `11%`).
+- **Biaya Layanan (Service Charge)**: Opsi toggle switch dan persentase custom (default `5%`).
+- **Fitur Struk Dapur**: Opsi toggle switch untuk menampilkan/menyembunyikan tombol cetak tiket dapur.
 
 ---
 
-### 7. 🛡️ Hak Akses Multi-User (Role-Based Access Control)
-- **Super Admin (`role = admin`)**: Akses penuh ke Dashboard, Kategori, Produk, Kelola User/Kasir, Riwayat Laporan, dan Pengaturan Toko.
-- **Kasir (`role = kasir`)**: Akses difokuskan hanya pada Layar Kasir POS (`/`), Proses Bayar, Cetak Struk, dan Riwayat Penjualan. Halaman admin otomatis terkunci.
-
----
-
-## 🏗️ Struktur & Arsitektur Direktori
+## 🏗️ Struktur Direktori Utama
 
 ```
 pos/
 ├── app/
 │   ├── Http/
 │   │   ├── Controllers/
-│   │   │   ├── AdminController.php        # Dashboard KPI, Riwayat & Export PDF
-│   │   │   ├── CategoryController.php     # CRUD Kategori Menu
-│   │   │   ├── POSController.php          # Layar Kasir, Checkout, Status & Struk
-│   │   │   ├── ProductController.php      # CRUD Produk & Unggah Gambar (Up to 50MB)
-│   │   │   ├── SettingController.php      # Pengaturan Toko, Pajak PPN & Layanan
+│   │   │   ├── AdminController.php        # Dashboard KPI, Riwayat, Void & Export PDF
+│   │   │   ├── CategoryController.php     # CRUD Kategori Menu & Palet Warna
+│   │   │   ├── CouponController.php       # CRUD Kupon Promo, Kategori & QR Code
+│   │   │   ├── POSController.php          # Layar Kasir, Checkout, Notes, Kupon & Struk
+│   │   │   ├── ProductController.php      # CRUD Produk (Stok Kelola / Unlimited)
+│   │   │   ├── SettingController.php      # Pengaturan Toko, Pajak, Layanan & KOT
 │   │   │   └── UserController.php         # Manajemen Pengguna & Kasir
 │   │   └── Middleware/
-│   │       └── AdminMiddleware.php        # Proteksi hak akses Administrator
+│   │       └── AdminMiddleware.php        # Proteksi Hak Akses Administrator
 │   └── Models/
 │       ├── Category.php                   # Model Kategori & Helper Warna
-│       ├── Order.php                      # Model Transaksi Pesanan
-│       ├── OrderItem.php                  # Model Item Detail Pesanan
-│       ├── Product.php                    # Model Produk & Accessor Gambar
+│       ├── Coupon.php                     # Model Kupon, Validasi & Hitung Diskon
+│       ├── Order.php                      # Model Transaksi Pesanan & Status Void
+│       ├── OrderItem.php                  # Model Detail Pesanan & Catatan Khusus
+│       ├── Product.php                    # Model Produk & Stok
 │       ├── Setting.php                    # Model Pengaturan Key-Value
-│       └── User.php                       # Model Pengguna & Role Helper
+│       └── User.php                       # Model Pengguna & Role
 ├── database/
-│   ├── migrations/                        # Skema Database MySQL
+│   ├── migrations/                        # Skema Database MySQL (Coupons, Void, Notes)
 │   └── seeders/
-│       └── DatabaseSeeder.php             # Seeder Default Akun, Kategori & Menu
+│       └── DatabaseSeeder.php             # Seeder Default Akun, Kategori, Menu & Kupon
 ├── resources/
 │   └── views/
 │       ├── admin/
-│       │   ├── categories/                # Tampilan Master Kategori
-│       │   ├── reports/sales_pdf.blade.php# Template Laporan PDF
-│       │   ├── settings/index.blade.php   # Tampilan Pengaturan Toko & Pajak
-│       │   ├── users/                     # Tampilan Master User & Kasir
-│       │   └── history.blade.php          # Tampilan Riwayat & Filter Rentang Tanggal
-│       ├── auth/                          # Tampilan Login & Register Modern
+│       │   ├── categories/                # Master Kategori
+│       │   ├── coupons/                   # Master Kupon & Generator QR Code
+│       │   ├── settings/                  # Pengaturan Toko, Pajak & Dapur
+│       │   ├── users/                     # Master User & Kasir
+│       │   └── history.blade.php          # Riwayat Transaksi & Fitur Void
 │       ├── pos/
 │       │   ├── checkout.blade.php         # Layar Tunggu QRIS Dinamis
 │       │   ├── index.blade.php            # Layar Utama Kasir POS (Flagship)
-│       │   └── receipt.blade.php          # Tampilan Struk Thermal 58mm/80mm
-│       └── products/                      # Tampilan Master Produk
+│       │   ├── receipt.blade.php          # Struk Thermal Kasir 58mm/80mm
+│       │   └── kitchen_receipt.blade.php  # Tiket Dapur / Bar (KOT)
+│       └── products/                      # Master Produk
 └── routes/
-    └── web.php                            # Rute Web, Admin, POS & Webhooks
+    └── web.php                            # Definisi Rute Web, Admin, POS & Webhook
 ```
 
 ---
@@ -160,8 +188,7 @@ pos/
    npm install
    ```
 
-3. **Konfigurasi Environment (`.env`)**:
-   Pastikan file `.env` telah dikonfigurasi dengan kredensial database Anda:
+3. **Konfigurasi Database (`.env`)**:
    ```env
    APP_NAME="POSPro"
    APP_URL=http://localhost:8000
@@ -172,38 +199,29 @@ pos/
    DB_DATABASE=pos
    DB_USERNAME=root
    DB_PASSWORD=
-
-   # Konfigurasi Mini Payment Gateway (Jika Digunakan)
-   PAYMENT_GATEWAY_URL=http://localhost:3000/api/v1/qris/generate
-   PAYMENT_GATEWAY_API_KEY=secret_key_hp_123
-   BACKEND_API_KEY=secret_backend_123
    ```
 
-4. **Generate Application Key**:
+4. **Generate Key & Symlink Storage**:
    ```bash
    php artisan key:generate
-   ```
-
-5. **Buat Symbolic Link Storage (Untuk Foto Produk)**:
-   ```bash
    php artisan storage:link
    ```
 
-6. **Migrasi Database & Seeder Data Awal**:
+5. **Migrasi Database & Seeder Awal**:
    ```bash
    php artisan migrate --seed
    ```
 
-7. **Kompilasi Aset Frontend (Tailwind & Vite)**:
+6. **Kompilasi Aset Frontend**:
    ```bash
    npm run build
    ```
 
-8. **Jalankan Server Laravel**:
+7. **Jalankan Server Laravel**:
    ```bash
    php artisan serve
    ```
-   Aplikasi siap diakses di browser pada: **`http://localhost:8000`**
+   Buka aplikasi di browser pada: **`http://localhost:8000`**
 
 ---
 
@@ -211,10 +229,8 @@ pos/
 
 | Peran (Role) | Email Akun | Password | Akses & Wewenang |
 | :--- | :--- | :--- | :--- |
-| 👑 **Super Admin** | `admin@pos.com` | `password` | Akses penuh ke seluruh menu, master produk, kategori, user, laporan finansial, dan pengaturan toko. |
-| 🧑‍💼 **Kasir 01** | `kasir@pos.com` | `password` | Akses khusus ke Layar Kasir POS (`/`), Proses Transaksi, Cetak Struk, dan Riwayat Penjualan. |
-
-> **Tip**: Pada halaman Login (`/login`), tersedia tombol **1-Click Autofill** untuk langsung mengisi kredensial Admin atau Kasir secara instan.
+| 👑 **Super Admin** | `admin@pos.com` | `password` | Akses penuh ke seluruh menu master produk, kategori, kupon, user, laporan finansial, void transaksi, dan pengaturan toko. |
+| 🧑‍💼 **Kasir 01** | `kasir@pos.com` | `password` | Akses khusus ke Layar Kasir POS (`/`), Proses Transaksi, Cetak Struk Kasir/Dapur, dan Riwayat Penjualan. |
 
 ---
 

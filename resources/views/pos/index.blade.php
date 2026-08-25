@@ -220,6 +220,20 @@
                             <div class="text-[10px] font-semibold text-slate-400 mt-0.5">
                                 @ Rp <span x-text="formatNumber(item.price)"></span>
                             </div>
+                            <!-- Item Notes (Only for items without stock management / cafe items) -->
+                            <template x-if="!item.manage_stock">
+                                <div class="mt-1">
+                                    <button 
+                                        type="button" 
+                                        @click="openNoteEditor(index)" 
+                                        class="text-[10px] px-2 py-0.5 rounded-md font-bold transition flex items-center space-x-1"
+                                        :class="item.notes ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-slate-100 hover:bg-slate-200 text-blue-600'"
+                                    >
+                                        <i class="fa-solid fa-pen text-[8px]"></i>
+                                        <span x-text="item.notes ? 'Note: ' + item.notes : '+ Catatan Menu'"></span>
+                                    </button>
+                                </div>
+                            </template>
                         </div>
 
                         <!-- Stepper Quantity (+ / -) Touch Friendly -->
@@ -252,7 +266,7 @@
 
             <!-- Cart Calculation & Bottom Payment Action -->
             <div class="p-3.5 md:p-4 bg-slate-50 border-t border-slate-200 space-y-3">
-                <!-- Subtotal, Discount %, Service %, Tax % Breakdown -->
+                <!-- Subtotal, Discount, Service, Tax Breakdown -->
                 <div class="space-y-2 text-xs">
                     <!-- Subtotal -->
                     <div class="flex justify-between text-slate-500 font-semibold">
@@ -260,37 +274,57 @@
                         <span class="font-bold text-slate-800" x-text="'Rp ' + formatNumber(subtotal)"></span>
                     </div>
 
-                    <!-- Discount (%) with Quick Presets -->
-                    <div class="space-y-1.5 pt-1 border-t border-slate-200/60">
-                        <div class="flex justify-between items-center text-slate-600 font-bold">
-                            <span class="flex items-center space-x-1">
-                                <span>Diskon</span>
-                                <span class="text-[10px] text-red-600 font-extrabold" x-show="discountPercent > 0" x-text="'(-' + discountPercent + '%)'"></span>
-                            </span>
-                            <div class="flex items-center space-x-1.5">
-                                <div class="relative w-16">
-                                    <input 
-                                        type="number" 
-                                        x-model.number="discountPercent" 
-                                        min="0"
-                                        max="100"
-                                        placeholder="0"
-                                        class="w-full text-right pr-5 py-1 text-xs font-extrabold text-red-600 bg-white border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500"
-                                    >
-                                    <span class="absolute inset-y-0 right-0 pr-1.5 flex items-center text-slate-400 font-bold text-[10px]">%</span>
-                                </div>
-                                <span class="text-xs font-extrabold text-red-600 min-w-[70px] text-right" x-text="'-Rp ' + formatNumber(discountAmount)"></span>
-                            </div>
+                    <!-- Kupon & Diskon Trigger Row -->
+                    <div class="pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                        <div class="flex items-center space-x-1.5">
+                            <i class="fa-solid fa-ticket text-blue-600 text-xs"></i>
+                            <span class="font-bold text-slate-700">Kupon & Diskon</span>
                         </div>
 
-                        <!-- Quick Discount Pills -->
-                        <div class="flex space-x-1 justify-end">
-                            <button type="button" @click="discountPercent = 0" class="px-1.5 py-0.5 rounded text-[10px] font-bold" :class="discountPercent === 0 ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'">0%</button>
-                            <button type="button" @click="discountPercent = 5" class="px-1.5 py-0.5 rounded text-[10px] font-bold" :class="discountPercent === 5 ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'">5%</button>
-                            <button type="button" @click="discountPercent = 10" class="px-1.5 py-0.5 rounded text-[10px] font-bold" :class="discountPercent === 10 ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'">10%</button>
-                            <button type="button" @click="discountPercent = 20" class="px-1.5 py-0.5 rounded text-[10px] font-bold" :class="discountPercent === 20 ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'">20%</button>
-                            <button type="button" @click="discountPercent = 50" class="px-1.5 py-0.5 rounded text-[10px] font-bold" :class="discountPercent === 50 ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'">50%</button>
-                        </div>
+                        <!-- 1. Coupon Applied Status -->
+                        <template x-if="appliedCoupon">
+                            <div class="flex items-center space-x-1.5">
+                                <span class="text-xs font-black text-blue-700" x-text="'-Rp ' + formatNumber(discountAmount)"></span>
+                                <button 
+                                    type="button" 
+                                    @click="openDiscountModal = true" 
+                                    style="background-color: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe;"
+                                    class="text-[10px] px-2 py-0.5 rounded-md font-mono font-black hover:bg-blue-200 transition"
+                                    x-text="appliedCoupon.coupon_code"
+                                ></button>
+                                <button type="button" @click="removeCoupon()" class="text-slate-400 hover:text-red-500 text-xs transition" title="Hapus Kupon">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </template>
+
+                        <!-- 2. Manual Discount Applied Status -->
+                        <template x-if="!appliedCoupon && discountPercent > 0">
+                            <div class="flex items-center space-x-1.5">
+                                <span class="text-xs font-black text-red-600" x-text="'-Rp ' + formatNumber(discountAmount)"></span>
+                                <button 
+                                    type="button" 
+                                    @click="openDiscountModal = true" 
+                                    class="text-[10px] px-2 py-0.5 bg-red-100 text-red-800 border border-red-200 rounded-md font-bold hover:bg-red-200 transition"
+                                    x-text="discountPercent + '%'"
+                                ></button>
+                                <button type="button" @click="discountPercent = 0" class="text-slate-400 hover:text-red-500 text-xs transition" title="Hapus Diskon">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </template>
+
+                        <!-- 3. No Discount Applied Status -->
+                        <template x-if="!appliedCoupon && discountPercent === 0">
+                            <button 
+                                type="button" 
+                                @click="openDiscountModal = true" 
+                                class="text-xs font-extrabold text-blue-600 hover:text-blue-700 hover:underline flex items-center space-x-1 transition"
+                            >
+                                <i class="fa-solid fa-plus text-[10px]"></i>
+                                <span>Pilih / Scan Kupon</span>
+                            </button>
+                        </template>
                     </div>
 
                     <!-- Service Charge (If Enabled) -->
@@ -599,6 +633,7 @@
                         <input type="hidden" name="customer_name" :value="customerName">
                         <input type="hidden" name="discount" :value="discountAmount">
                         <input type="hidden" name="discount_percent" :value="discountPercent">
+                        <input type="hidden" name="coupon_code" :value="appliedCoupon ? appliedCoupon.coupon_code : ''">
                         <input type="hidden" name="service" :value="serviceAmount">
                         <input type="hidden" name="service_percent" :value="enableService ? serviceRate : 0">
                         <input type="hidden" name="tax" :value="taxAmount">
@@ -673,6 +708,324 @@
             </div>
         </div>
 
+
+        <!-- MODAL 4: ITEM NOTES EDITOR (Khusus menu tanpa stok / cafe) -->
+        <div 
+            x-show="openNoteModal" 
+            x-cloak
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0"
+            x-transition:enter-end="opacity-100"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"
+            class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+        >
+            <div @click.away="openNoteModal = false" class="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 p-6 space-y-4 text-left">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="font-extrabold text-sm text-slate-900 flex items-center space-x-2">
+                        <i class="fa-solid fa-pen-to-square text-amber-500"></i>
+                        <span>Catatan: <span class="text-blue-600" x-text="editingItemName"></span></span>
+                    </h3>
+                    <button @click="openNoteModal = false" class="text-slate-400 hover:text-slate-600">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Note Input -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Request Khusus Dapur / Bar</label>
+                    <input 
+                        type="text" 
+                        x-model="itemNoteInput" 
+                        id="itemNoteInputField"
+                        @keydown.enter.prevent="saveItemNote()"
+                        placeholder="Contoh: Less Sugar, Es Sedikit, Tanpa Bawang" 
+                        class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-amber-500 transition"
+                    >
+                </div>
+
+                <!-- Quick Note Presets -->
+                <div>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Preset Cepat:</span>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button type="button" @click="appendNotePreset('Less Sugar')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">Less Sugar</button>
+                        <button type="button" @click="appendNotePreset('Normal Sugar')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">Normal Sugar</button>
+                        <button type="button" @click="appendNotePreset('Es Sedikit')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">Es Sedikit</button>
+                        <button type="button" @click="appendNotePreset('Tanpa Es')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">Tanpa Es</button>
+                        <button type="button" @click="appendNotePreset('Panas')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">Panas</button>
+                        <button type="button" @click="appendNotePreset('Pedas Sedang')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">Pedas Sedang</button>
+                        <button type="button" @click="appendNotePreset('Ekstra Pedas')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">Ekstra Pedas</button>
+                        <button type="button" @click="appendNotePreset('Tanpa Bawang')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">Tanpa Bawang</button>
+                        <button type="button" @click="appendNotePreset('Pisah Sambal')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">Pisah Sambal</button>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex items-center justify-between pt-3 border-t border-slate-100">
+                    <button type="button" @click="itemNoteInput = ''; saveItemNote();" class="text-xs font-bold text-red-500 hover:underline">
+                        Hapus Catatan
+                    </button>
+                    <div class="flex space-x-2">
+                        <button type="button" @click="openNoteModal = false" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">
+                            Batal
+                        </button>
+                        <button type="button" @click="saveItemNote()" class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl shadow-md transition">
+                            Simpan
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- MODAL 5: KUPON, VOUCHER PROMO & DISKON MANUAL -->
+        <div 
+            x-show="openDiscountModal" 
+            x-cloak
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0"
+            x-transition:enter-end="opacity-100"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"
+            class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+        >
+            <div @click.away="closeDiscountModal()" class="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-100 overflow-hidden text-left">
+                <!-- Header -->
+                <div class="p-5 bg-slate-900 text-white flex items-center justify-between">
+                    <div class="flex items-center space-x-2.5">
+                        <div class="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-sm shadow-md shadow-blue-600/30">
+                            <i class="fa-solid fa-ticket"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-extrabold text-sm">Kupon & Diskon Tagihan</h3>
+                            <p class="text-[11px] text-slate-400">Pilih voucher diskon promo atau tentukan diskon manual</p>
+                        </div>
+                    </div>
+                    <button @click="closeDiscountModal()" class="text-slate-400 hover:text-white text-lg transition">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Tab Navigation -->
+                <div class="flex border-b border-slate-200 bg-slate-50 px-4 pt-2">
+                    <button 
+                        type="button" 
+                        @click="discountTab = 'coupon'" 
+                        class="px-4 py-2.5 text-xs font-extrabold border-b-2 transition flex items-center space-x-1.5"
+                        :class="discountTab === 'coupon' ? 'border-blue-600 text-blue-600 bg-white rounded-t-xl' : 'border-transparent text-slate-500 hover:text-slate-700'"
+                    >
+                        <i class="fa-solid fa-ticket-simple"></i>
+                        <span>Voucher & QR Kupon</span>
+                    </button>
+                    <button 
+                        type="button" 
+                        @click="discountTab = 'manual'" 
+                        class="px-4 py-2.5 text-xs font-extrabold border-b-2 transition flex items-center space-x-1.5"
+                        :class="discountTab === 'manual' ? 'border-blue-600 text-blue-600 bg-white rounded-t-xl' : 'border-transparent text-slate-500 hover:text-slate-700'"
+                    >
+                        <i class="fa-solid fa-percent"></i>
+                        <span>Diskon Manual (%)</span>
+                    </button>
+                </div>
+
+                <!-- Tab 1: Voucher & QR Scan -->
+                <div x-show="discountTab === 'coupon'" x-cloak class="p-5 space-y-4 max-h-[70vh] overflow-y-auto" style="background-color: #f8fafc;">
+                    <!-- Manual Typing & Camera Trigger -->
+                    <div class="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-2">
+                        <label class="block text-xs font-extrabold uppercase tracking-wider" style="color: #0f172a;">Input / Scan Kode Voucher</label>
+                        <div class="flex space-x-2">
+                            <div class="relative flex-1">
+                                <input 
+                                    type="text" 
+                                    x-model="couponCodeInput" 
+                                    @keydown.enter.prevent="applyCoupon()" 
+                                    placeholder="Contoh: COFFEE2026 / HEMAT20K" 
+                                    style="background-color: #ffffff; color: #1e3a8a; border: 2px solid #cbd5e1;"
+                                    class="w-full pl-3.5 pr-2 py-2.5 rounded-xl text-xs font-black uppercase placeholder:text-slate-400 focus:outline-none focus:border-blue-600 transition"
+                                >
+                            </div>
+                            <button 
+                                type="button" 
+                                @click="applyCoupon()" 
+                                :disabled="!couponCodeInput || couponLoading"
+                                style="background-color: #2563eb; color: #ffffff;"
+                                class="px-5 py-2.5 text-xs font-black rounded-xl shadow-md shadow-blue-600/30 transition active:scale-95 disabled:opacity-50 flex items-center space-x-1 cursor-pointer hover:bg-blue-700"
+                            >
+                                <span x-show="!couponLoading">Pakai</span>
+                                <span x-show="couponLoading"><i class="fa-solid fa-spinner animate-spin"></i></span>
+                            </button>
+                            <button 
+                                type="button" 
+                                @click="toggleQrScanner()" 
+                                class="px-4 py-2.5 rounded-xl text-xs font-extrabold transition shadow-sm flex items-center space-x-1.5 cursor-pointer"
+                                :style="isScanningQr ? 'background-color: #dc2626; color: #ffffff;' : 'background-color: #0f172a; color: #ffffff;'"
+                                title="Buka Kamera untuk Scan QR"
+                            >
+                                <i class="fa-solid" :class="isScanningQr ? 'fa-video-slash' : 'fa-camera'"></i>
+                                <span x-text="isScanningQr ? 'Tutup' : 'Scan QR'"></span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Live Camera Scanner Box -->
+                    <div x-show="isScanningQr" x-cloak class="p-4 bg-slate-900 rounded-2xl text-center space-y-3 shadow-lg">
+                        <div class="text-white text-xs font-black flex items-center justify-center space-x-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
+                            <span class="tracking-wide uppercase">Arahkan Kamera ke QR Code Voucher</span>
+                        </div>
+                        <div id="qr-camera-reader" class="w-full max-w-xs mx-auto overflow-hidden rounded-2xl bg-black border-2 border-blue-500 shadow-inner"></div>
+                        <p class="text-[11px] text-slate-300 font-medium">Pindai QR kupon yang dicetak atau dari layar HP customer.</p>
+                    </div>
+
+                    <!-- Available Active Coupons List -->
+                    <div class="space-y-2.5 pt-1">
+                        <div class="flex items-center justify-between px-1">
+                            <span class="text-xs font-black uppercase tracking-wider" style="color: #0f172a;">Voucher Tersedia</span>
+                            <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full" style="background-color: #dbeafe; color: #1e40af;" x-text="activeCoupons.length + ' Kupon Aktif'"></span>
+                        </div>
+
+                        <div class="space-y-2.5">
+                            <template x-if="activeCoupons.length === 0">
+                                <div class="p-6 bg-white border border-slate-200 rounded-2xl text-center text-slate-400 text-xs">
+                                    <i class="fa-solid fa-ticket text-2xl mb-1 text-slate-300"></i>
+                                    <p class="font-bold text-slate-600">Tidak ada voucher aktif</p>
+                                    <p class="text-[11px] text-slate-400">Buat voucher promo baru di menu Admin Kupon.</p>
+                                </div>
+                            </template>
+
+                            <template x-for="cp in activeCoupons" :key="cp.id">
+                                <div 
+                                    class="p-4 rounded-2xl transition-all flex items-center justify-between shadow-sm"
+                                    :style="appliedCoupon && appliedCoupon.coupon_code === cp.code ? 'background-color: #eff6ff; border: 2px solid #2563eb; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.15);' : 'background-color: #ffffff; border: 2px solid #e2e8f0;'"
+                                >
+                                    <!-- Coupon Details -->
+                                    <div class="space-y-1.5 pr-2">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <!-- Code Badge with Signature Royal Blue Background & White Text -->
+                                            <span 
+                                                style="background-color: #2563eb; color: #ffffff; font-family: monospace; font-weight: 900;" 
+                                                class="px-3 py-1 text-xs rounded-lg shadow-sm inline-block" 
+                                                x-text="cp.code"
+                                            ></span>
+                                            
+                                            <!-- Category Badge with High Contrast -->
+                                            <template x-if="cp.category">
+                                                <span 
+                                                    style="background-color: #fef3c7; color: #92400e; border: 1px solid #fcd34d;" 
+                                                    class="px-2.5 py-0.5 font-black text-[10px] rounded-md inline-flex items-center space-x-1"
+                                                >
+                                                    <i class="fa-solid fa-filter text-[9px]"></i>
+                                                    <span x-text="cp.category.name"></span>
+                                                </span>
+                                            </template>
+                                            <template x-if="!cp.category">
+                                                <span 
+                                                    style="background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1;" 
+                                                    class="px-2.5 py-0.5 font-black text-[10px] rounded-md inline-flex items-center space-x-1"
+                                                >
+                                                    <i class="fa-solid fa-layer-group text-[9px]"></i>
+                                                    <span>Semua Menu</span>
+                                                </span>
+                                            </template>
+                                        </div>
+
+                                        <h5 class="font-extrabold text-xs" style="color: #0f172a;" x-text="cp.title"></h5>
+
+                                        <div class="flex items-center space-x-2 text-[11px]">
+                                            <span 
+                                                style="background-color: #fee2e2; color: #b91c1c; border: 1px solid #fecaca;" 
+                                                class="font-black px-2 py-0.5 rounded-md inline-block" 
+                                                x-text="cp.discount_type === 'PERCENT' ? 'Hemat ' + parseFloat(cp.discount_value) + '%' : 'Potongan Rp ' + formatNumber(cp.discount_value)"
+                                            ></span>
+                                            <span style="color: #64748b; font-weight: 600;" x-show="cp.min_order_amount > 0" x-text="'Min. Belanja Rp ' + formatNumber(cp.min_order_amount)"></span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Action Button -->
+                                    <div class="flex-shrink-0">
+                                        <template x-if="appliedCoupon && appliedCoupon.coupon_code === cp.code">
+                                            <span 
+                                                style="background-color: #059669; color: #ffffff;" 
+                                                class="px-3.5 py-2 font-black text-xs rounded-xl shadow-md flex items-center space-x-1.5"
+                                            >
+                                                <i class="fa-solid fa-circle-check text-sm"></i>
+                                                <span>Terpasang</span>
+                                            </span>
+                                        </template>
+                                        <template x-if="!appliedCoupon || appliedCoupon.coupon_code !== cp.code">
+                                            <button 
+                                                type="button" 
+                                                @click="applyCouponDirect(cp.code)" 
+                                                style="background-color: #2563eb; color: #ffffff;" 
+                                                class="px-4 py-2 font-black text-xs rounded-xl shadow-md shadow-blue-600/30 transition active:scale-95 flex items-center space-x-1 hover:bg-blue-700 cursor-pointer"
+                                            >
+                                                <span>Gunakan</span>
+                                                <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Diskon Manual -->
+                <div x-show="discountTab === 'manual'" x-cloak class="p-6 space-y-4 bg-white">
+                    <div style="background-color: #fffbeb; border: 1px solid #fde68a; color: #92400e;" class="p-3.5 rounded-2xl text-xs font-medium flex items-start space-x-2">
+                        <i class="fa-solid fa-circle-info text-amber-600 text-sm mt-0.5"></i>
+                        <span>Diskon manual memotong total belanja berdasarkan persentase (%). Memasang diskon manual akan menonaktifkan voucher promo.</span>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase tracking-wider mb-1.5" style="color: #0f172a;">Persentase Diskon (%)</label>
+                        <div class="relative">
+                            <input 
+                                type="number" 
+                                x-model.number="tempDiscountPercent" 
+                                min="0" 
+                                max="100" 
+                                placeholder="0" 
+                                style="background-color: #f8fafc; border: 2px solid #cbd5e1; color: #dc2626;"
+                                class="w-full pl-4 pr-10 py-3 rounded-xl text-lg font-black focus:bg-white focus:outline-none focus:border-red-500 transition"
+                            >
+                            <span class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 font-black text-base">%</span>
+                        </div>
+                    </div>
+
+                    <!-- Quick Preset Pills -->
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Preset Cepat:</span>
+                        <div class="grid grid-cols-5 gap-2">
+                            <button type="button" @click="tempDiscountPercent = 0" class="py-2.5 rounded-xl text-xs font-black transition cursor-pointer" :style="tempDiscountPercent === 0 ? 'background-color: #0f172a; color: #ffffff;' : 'background-color: #f1f5f9; color: #334155; border: 1px solid #e2e8f0;'">0%</button>
+                            <button type="button" @click="tempDiscountPercent = 5" class="py-2.5 rounded-xl text-xs font-black transition cursor-pointer" :style="tempDiscountPercent === 5 ? 'background-color: #dc2626; color: #ffffff;' : 'background-color: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;'">5%</button>
+                            <button type="button" @click="tempDiscountPercent = 10" class="py-2.5 rounded-xl text-xs font-black transition cursor-pointer" :style="tempDiscountPercent === 10 ? 'background-color: #dc2626; color: #ffffff;' : 'background-color: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;'">10%</button>
+                            <button type="button" @click="tempDiscountPercent = 20" class="py-2.5 rounded-xl text-xs font-black transition cursor-pointer" :style="tempDiscountPercent === 20 ? 'background-color: #dc2626; color: #ffffff;' : 'background-color: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;'">20%</button>
+                            <button type="button" @click="tempDiscountPercent = 50" class="py-2.5 rounded-xl text-xs font-black transition cursor-pointer" :style="tempDiscountPercent === 50 ? 'background-color: #dc2626; color: #ffffff;' : 'background-color: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;'">50%</button>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-100">
+                        <button type="button" @click="applyManualDiscount()" style="background-color: #dc2626; color: #ffffff;" class="w-full py-3.5 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition active:scale-95 cursor-pointer">
+                            Terapkan Diskon Manual
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="p-4 bg-white border-t border-slate-200 flex items-center justify-between">
+                    <button type="button" @click="clearAllDiscounts()" style="color: #dc2626;" class="text-xs font-black hover:underline cursor-pointer">
+                        Hapus Semua Diskon
+                    </button>
+                    <button type="button" @click="closeDiscountModal()" style="background-color: #0f172a; color: #ffffff;" class="px-6 py-2.5 font-black text-xs rounded-xl shadow-md transition active:scale-95 cursor-pointer hover:bg-slate-800">
+                        Selesai
+                    </button>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Alpine.js POS Logic -->
@@ -680,11 +1033,24 @@
         document.addEventListener('alpine:init', () => {
             Alpine.data('posApp', () => ({
                 allProducts: @json($products),
+                activeCoupons: @json($activeCoupons ?? []),
                 searchQuery: '',
                 selectedCategory: null,
                 cart: [],
                 customerName: '',
                 discountPercent: 0,
+                tempDiscountPercent: 0,
+                couponCodeInput: '',
+                appliedCoupon: null,
+                couponLoading: false,
+                openDiscountModal: false,
+                discountTab: 'coupon',
+                isScanningQr: false,
+                html5QrCodeScanner: null,
+                openNoteModal: false,
+                editingItemIndex: null,
+                editingItemName: '',
+                itemNoteInput: '',
                 enableTax: {{ $taxSettings['enable_tax'] ? 'true' : 'false' }},
                 taxRate: {{ $taxSettings['tax_rate'] }},
                 enableService: {{ $taxSettings['enable_service'] ? 'true' : 'false' }},
@@ -715,6 +1081,8 @@
                             this.showPaymentModal = false;
                             this.openCustomerModal = false;
                             this.openHoldModal = false;
+                            this.openNoteModal = false;
+                            this.closeDiscountModal();
                         }
                     });
                 },
@@ -738,6 +1106,9 @@
                 },
 
                 get discountAmount() {
+                    if (this.appliedCoupon) {
+                        return this.appliedCoupon.discount_amount || 0;
+                    }
                     return Math.round(this.subtotal * ((this.discountPercent || 0) / 100));
                 },
 
@@ -771,7 +1142,7 @@
                         return;
                     }
 
-                    const existing = this.cart.find(i => i.id === product.id);
+                    const existing = this.cart.find(i => i.id === product.id && !i.notes);
                     if (existing) {
                         if (!product.manage_stock || existing.qty < product.stock) {
                             existing.qty++;
@@ -786,10 +1157,193 @@
                             price: parseFloat(product.price),
                             stock: product.stock,
                             manage_stock: product.manage_stock,
-                            qty: 1
+                            qty: 1,
+                            notes: ''
                         });
                         playBeep('beep');
                     }
+
+                    // Revalidate coupon if exists
+                    if (this.appliedCoupon) {
+                        this.recalculateCoupon();
+                    }
+                },
+
+                openNoteEditor(index) {
+                    this.editingItemIndex = index;
+                    this.editingItemName = this.cart[index].name;
+                    this.itemNoteInput = this.cart[index].notes || '';
+                    this.openNoteModal = true;
+                    this.$nextTick(() => {
+                        const el = document.getElementById('itemNoteInputField');
+                        if (el) el.focus();
+                    });
+                },
+
+                appendNotePreset(preset) {
+                    if (!this.itemNoteInput) {
+                        this.itemNoteInput = preset;
+                    } else if (!this.itemNoteInput.includes(preset)) {
+                        this.itemNoteInput += ', ' + preset;
+                    }
+                },
+
+                saveItemNote() {
+                    if (this.editingItemIndex !== null && this.cart[this.editingItemIndex]) {
+                        this.cart[this.editingItemIndex].notes = this.itemNoteInput.trim();
+                    }
+                    this.openNoteModal = false;
+                },
+
+                closeDiscountModal() {
+                    this.openDiscountModal = false;
+                    this.stopQrScanner();
+                },
+
+                applyCoupon() {
+                    if (!this.couponCodeInput || this.couponCodeInput.trim() === '') return;
+                    if (this.subtotal <= 0) {
+                        Toast.fire({ icon: 'warning', title: 'Keranjang belanja masih kosong!' });
+                        return;
+                    }
+
+                    this.couponLoading = true;
+                    fetch("{{ route('pos.validate-coupon') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify({
+                            code: this.couponCodeInput.trim(),
+                            subtotal: this.subtotal,
+                            items: this.cart
+                        })
+                    })
+                    .then(res => res.json().then(data => ({ status: res.status, body: data })))
+                    .then(({ status, body }) => {
+                        this.couponLoading = false;
+                        if (status === 200 && body.valid) {
+                            this.appliedCoupon = body;
+                            this.discountPercent = 0;
+                            playBeep('success');
+                            Toast.fire({
+                                icon: 'success',
+                                title: `Kupon ${body.coupon_code} berhasil diterapkan! (Hemat Rp ${this.formatNumber(body.discount_amount)})`
+                            });
+                            this.closeDiscountModal();
+                        } else {
+                            Toast.fire({
+                                icon: 'error',
+                                title: body.message || 'Kupon tidak valid!'
+                            });
+                        }
+                    })
+                    .catch(err => {
+                        this.couponLoading = false;
+                        Toast.fire({ icon: 'error', title: 'Gagal memvalidasi kupon.' });
+                    });
+                },
+
+                applyCouponDirect(code) {
+                    this.couponCodeInput = code;
+                    this.applyCoupon();
+                },
+
+                applyManualDiscount() {
+                    this.discountPercent = Math.min(100, Math.max(0, parseInt(this.tempDiscountPercent) || 0));
+                    this.appliedCoupon = null;
+                    this.couponCodeInput = '';
+                    Toast.fire({ icon: 'success', title: `Diskon manual ${this.discountPercent}% diterapkan` });
+                    this.closeDiscountModal();
+                },
+
+                clearAllDiscounts() {
+                    this.appliedCoupon = null;
+                    this.couponCodeInput = '';
+                    this.discountPercent = 0;
+                    this.tempDiscountPercent = 0;
+                    Toast.fire({ icon: 'info', title: 'Semua diskon dibersihkan' });
+                    this.closeDiscountModal();
+                },
+
+                recalculateCoupon() {
+                    if (!this.appliedCoupon) return;
+                    fetch("{{ route('pos.validate-coupon') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify({
+                            code: this.appliedCoupon.coupon_code,
+                            subtotal: this.subtotal,
+                            items: this.cart
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.valid) {
+                            this.appliedCoupon = data;
+                        } else {
+                            this.removeCoupon();
+                            Toast.fire({ icon: 'warning', title: data.message });
+                        }
+                    });
+                },
+
+                removeCoupon() {
+                    this.appliedCoupon = null;
+                    this.couponCodeInput = '';
+                    this.discountPercent = 0;
+                    Toast.fire({ icon: 'info', title: 'Kupon telah dihapus' });
+                },
+
+                toggleQrScanner() {
+                    if (this.isScanningQr) {
+                        this.stopQrScanner();
+                    } else {
+                        this.startQrScanner();
+                    }
+                },
+
+                startQrScanner() {
+                    if (typeof Html5Qrcode === 'undefined') {
+                        Toast.fire({ icon: 'error', title: 'Modul pemindai kamera tidak tersedia' });
+                        return;
+                    }
+                    this.isScanningQr = true;
+                    this.$nextTick(() => {
+                        try {
+                            this.html5QrCodeScanner = new Html5Qrcode("qr-camera-reader");
+                            const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+                            this.html5QrCodeScanner.start(
+                                { facingMode: "environment" },
+                                config,
+                                (decodedText) => {
+                                    playBeep('success');
+                                    this.couponCodeInput = decodedText.toUpperCase().trim();
+                                    this.stopQrScanner();
+                                    this.applyCoupon();
+                                },
+                                (errorMessage) => {}
+                            ).catch((err) => {
+                                Toast.fire({ icon: 'error', title: 'Gagal membuka kamera. Pastikan izin kamera aktif!' });
+                                this.isScanningQr = false;
+                            });
+                        } catch(e) {
+                            this.isScanningQr = false;
+                        }
+                    });
+                },
+
+                stopQrScanner() {
+                    if (this.html5QrCodeScanner && this.isScanningQr) {
+                        this.html5QrCodeScanner.stop().then(() => {
+                            this.html5QrCodeScanner.clear();
+                        }).catch(() => {});
+                    }
+                    this.isScanningQr = false;
                 },
 
                 increaseQty(index) {
@@ -797,6 +1351,7 @@
                     if (!item.manage_stock || item.qty < item.stock) {
                         item.qty++;
                         playBeep('beep');
+                        if (this.appliedCoupon) this.recalculateCoupon();
                     } else {
                         Toast.fire({ icon: 'warning', title: 'Stok tidak mencukupi!' });
                     }
@@ -806,6 +1361,7 @@
                     if (this.cart[index].qty > 1) {
                         this.cart[index].qty--;
                         playBeep('beep');
+                        if (this.appliedCoupon) this.recalculateCoupon();
                     } else {
                         this.removeFromCart(index);
                     }
@@ -813,16 +1369,22 @@
 
                 removeFromCart(index) {
                     this.cart.splice(index, 1);
+                    if (this.appliedCoupon) this.recalculateCoupon();
                 },
 
                 clearCart() {
                     this.cart = [];
                     this.discountPercent = 0;
+                    this.tempDiscountPercent = 0;
+                    this.appliedCoupon = null;
+                    this.couponCodeInput = '';
                     this.customerName = '';
                 },
 
                 handleBarcodeScan() {
                     if (!this.searchQuery) return;
+                    
+                    // Check if it's a product barcode
                     const found = this.allProducts.find(p => 
                         (p.barcode && p.barcode.toLowerCase() === this.searchQuery.toLowerCase().trim()) ||
                         (p.sku && p.sku.toLowerCase() === this.searchQuery.toLowerCase().trim())
@@ -831,6 +1393,11 @@
                     if (found) {
                         this.addToCart(found);
                         this.searchQuery = '';
+                    } else {
+                        // Check if cashier scanned a coupon QR code!
+                        this.couponCodeInput = this.searchQuery.toUpperCase().trim();
+                        this.searchQuery = '';
+                        this.applyCoupon();
                     }
                 },
 
@@ -906,7 +1473,8 @@
                     this.heldOrders.push({
                         customerName: this.customerName || 'Pelanggan #' + (this.heldOrders.length + 1),
                         items: [...this.cart],
-                        discount: this.discount,
+                        discountPercent: this.discountPercent,
+                        appliedCoupon: this.appliedCoupon,
                         total: this.grandTotal,
                         time: new Date().toLocaleTimeString('id-ID')
                     });
@@ -920,7 +1488,8 @@
                     const held = this.heldOrders[index];
                     this.cart = held.items;
                     this.customerName = held.customerName;
-                    this.discount = held.discount;
+                    this.discountPercent = held.discountPercent || 0;
+                    this.appliedCoupon = held.appliedCoupon || null;
                     this.heldOrders.splice(index, 1);
                     localStorage.setItem('pos_held_orders', JSON.stringify(this.heldOrders));
                     this.openHoldModal = false;
@@ -947,3 +1516,4 @@
         });
     </script>
 </x-app-layout>
+

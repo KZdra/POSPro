@@ -5,7 +5,7 @@
                 <h2 class="font-extrabold text-2xl text-slate-900 leading-tight">
                     {{ __('Riwayat Transaksi Penjualan') }}
                 </h2>
-                <p class="text-xs text-slate-500 mt-1">Laporan lengkap penjualan berdasarkan rentang tanggal & metode pembayaran</p>
+                <p class="text-xs text-slate-500 mt-1">Laporan lengkap penjualan, pembatalan (void), cetak ulang struk kasir & dapur</p>
             </div>
 
             <!-- PDF Export Buttons -->
@@ -29,12 +29,27 @@
         </div>
     </x-slot>
 
-    <div class="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+    <div class="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6" x-data="historyApp()">
         
+        <!-- Flash Alert Messages -->
+        @if(session('success'))
+            <div class="p-4 bg-emerald-50 border border-emerald-300 rounded-2xl text-emerald-800 text-xs font-extrabold flex items-center space-x-2">
+                <i class="fa-solid fa-circle-check text-emerald-600 text-base"></i>
+                <span>{{ session('success') }}</span>
+            </div>
+        @endif
+
+        @if(session('error'))
+            <div class="p-4 bg-red-50 border border-red-300 rounded-2xl text-red-800 text-xs font-extrabold flex items-center space-x-2">
+                <i class="fa-solid fa-circle-exclamation text-red-600 text-base"></i>
+                <span>{{ session('error') }}</span>
+            </div>
+        @endif
+
         <!-- Summary KPI Cards -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <!-- Total Revenue -->
-            <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
+            <div class="col-span-2 sm:col-span-1 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
                 <div class="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg shrink-0">
                     <i class="fa-solid fa-money-bill-trend-up"></i>
                 </div>
@@ -52,7 +67,7 @@
                     <i class="fa-solid fa-circle-check"></i>
                 </div>
                 <div>
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Transaksi Lunas</span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Trx Lunas</span>
                     <span class="text-base sm:text-lg font-extrabold text-slate-900">
                         {{ $paidCount }} Pesanan
                     </span>
@@ -84,10 +99,23 @@
                     </span>
                 </div>
             </div>
+
+            <!-- Voided Orders -->
+            <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
+                <div class="w-11 h-11 rounded-xl bg-red-50 text-red-600 flex items-center justify-center text-lg shrink-0">
+                    <i class="fa-solid fa-ban"></i>
+                </div>
+                <div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Batal (Void)</span>
+                    <span class="text-base sm:text-lg font-extrabold text-red-600">
+                        {{ $voidCount ?? 0 }} Trx
+                    </span>
+                </div>
+            </div>
         </div>
 
         <!-- Filter Toolbar (Date Range + Presets) -->
-        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 no-print" x-data="dateRangePicker()">
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 no-print">
             
             <!-- Quick Date Preset Buttons -->
             <div>
@@ -157,6 +185,7 @@
                         <option value="">Semua Status</option>
                         <option value="PAID" {{ request('status') === 'PAID' ? 'selected' : '' }}>Lunas (PAID)</option>
                         <option value="PENDING" {{ request('status') === 'PENDING' ? 'selected' : '' }}>Menunggu (PENDING)</option>
+                        <option value="VOID" {{ request('status') === 'VOID' ? 'selected' : '' }}>Dibatalkan (VOID)</option>
                     </select>
                 </div>
 
@@ -173,7 +202,7 @@
         </div>
 
         <!-- DataTable of Orders -->
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <table id="historyTable" class="w-full text-left text-xs">
                 <thead>
                     <tr class="text-slate-500 uppercase tracking-wider border-b border-slate-200">
@@ -181,7 +210,7 @@
                         <th class="py-3 px-3">No. Order</th>
                         <th class="py-3 px-3">Pelanggan / Meja</th>
                         <th class="py-3 px-3">Kasir</th>
-                        <th class="py-3 px-3">Rincian Menu</th>
+                        <th class="py-3 px-3">Rincian Menu & Catatan</th>
                         <th class="py-3 px-3">Metode</th>
                         <th class="py-3 px-3">Total Bayar</th>
                         <th class="py-3 px-3">Status</th>
@@ -190,63 +219,129 @@
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @foreach($orders as $order)
-                        <tr class="hover:bg-slate-50 transition">
+                        <tr class="hover:bg-slate-50 transition {{ $order->status === 'VOID' ? 'bg-red-50/40 opacity-75' : '' }}">
+                            <!-- Date & Time -->
                             <td class="py-3 px-3 whitespace-nowrap text-slate-600 font-medium">
                                 <span class="font-bold text-slate-900 block">{{ $order->created_at->format('d M Y') }}</span>
                                 <span class="text-[11px] text-slate-400 font-mono">{{ $order->created_at->format('H:i:s') }} WIB</span>
                             </td>
-                            <td class="py-3 px-3 font-mono font-extrabold text-blue-600">
+
+                            <!-- Order ID & Coupon -->
+                            <td class="py-3 px-3 font-mono font-extrabold text-blue-600 whitespace-nowrap">
                                 {{ $order->order_id }}
+                                @if($order->coupon_code)
+                                    <span class="block text-[10px] text-purple-600 font-bold font-sans">
+                                        <i class="fa-solid fa-tag"></i> {{ $order->coupon_code }}
+                                    </span>
+                                @endif
                             </td>
+
+                            <!-- Customer / Table -->
                             <td class="py-3 px-3 font-bold text-slate-800">
                                 {{ $order->customer_name }}
                             </td>
+
+                            <!-- Cashier -->
                             <td class="py-3 px-3 text-slate-500 font-medium">
                                 {{ $order->user ? $order->user->name : '-' }}
                             </td>
+
+                            <!-- Items & Item Notes -->
                             <td class="py-3 px-3">
                                 <div class="space-y-1 max-w-xs">
                                     @foreach($order->items as $item)
                                         <div class="text-[11px] text-slate-700">
                                             <span class="font-bold text-slate-900">{{ $item->qty }}x</span> {{ $item->product_name }}
+                                            @if(!empty($item->notes))
+                                                <span class="block text-[10px] text-amber-700 font-semibold pl-2">
+                                                    &bull; Note: {{ $item->notes }}
+                                                </span>
+                                            @endif
                                         </div>
                                     @endforeach
                                 </div>
                             </td>
+
+                            <!-- Payment Method -->
                             <td class="py-3 px-3">
                                 <span class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase {{ $order->payment_method === 'QRIS' ? 'bg-purple-100 text-purple-800 border border-purple-200' : 'bg-blue-100 text-blue-800 border border-blue-200' }}">
                                     {{ $order->payment_method }}
                                 </span>
                             </td>
+
+                            <!-- Total Amount -->
                             <td class="py-3 px-3 font-extrabold text-slate-900 text-sm whitespace-nowrap">
-                                Rp {{ number_format($order->grand_total, 0, ',', '.') }}
-                            </td>
-                            <td class="py-3 px-3">
-                                <span class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold {{ $order->status === 'PAID' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200' }}">
-                                    {{ $order->status }}
+                                <span class="{{ $order->status === 'VOID' ? 'line-through text-slate-400' : '' }}">
+                                    Rp {{ number_format($order->grand_total, 0, ',', '.') }}
                                 </span>
-                                @if($order->settlement_type === 'MANUAL_CASHIER' && $order->payment_method === 'QRIS')
-                                    <span class="block text-[9px] text-amber-600 font-bold mt-1">
-                                        <i class="fa-solid fa-user-check"></i> Verif Manual
+                            </td>
+
+                            <!-- Status & Void Details -->
+                            <td class="py-3 px-3">
+                                @if($order->status === 'PAID')
+                                    <span class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                        LUNAS
+                                    </span>
+                                    @if($order->settlement_type === 'MANUAL_CASHIER' && $order->payment_method === 'QRIS')
+                                        <span class="block text-[9px] text-amber-600 font-bold mt-1">
+                                            <i class="fa-solid fa-user-check"></i> Verif Manual
+                                        </span>
+                                    @endif
+                                @elseif($order->status === 'VOID')
+                                    <span class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-red-100 text-red-800 border border-red-200">
+                                        DIBATALKAN
+                                    </span>
+                                    <div class="text-[10px] text-red-600 mt-1 max-w-[140px] leading-tight">
+                                        <strong>Alasan:</strong> {{ $order->void_reason ?? '-' }}
+                                        @if($order->voidedByUser)
+                                            <span class="block text-[9px] text-slate-400">Oleh: {{ $order->voidedByUser->name }}</span>
+                                        @endif
+                                    </div>
+                                @else
+                                    <span class="px-2.5 py-1 rounded-lg text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-200">
+                                        MENUNGGU
                                     </span>
                                 @endif
                             </td>
+
+                            <!-- Actions -->
                             <td class="py-3 px-3 text-right no-print whitespace-nowrap space-x-1">
                                 @if($order->payment_proof)
                                     <a 
                                         href="{{ asset('storage/' . $order->payment_proof) }}" 
                                         target="_blank" 
-                                        class="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl font-bold text-xs transition inline-flex items-center space-x-1 shadow-sm" 
+                                        class="px-2 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl font-bold text-xs transition inline-flex items-center space-x-1 shadow-sm" 
                                         title="Lihat Foto Bukti Bayar"
                                     >
                                         <i class="fa-solid fa-image"></i>
-                                        <span>Bukti</span>
                                     </a>
                                 @endif
-                                <a href="{{ route('pos.receipt', $order->order_id) }}" target="_blank" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition inline-flex items-center space-x-1.5 shadow-sm" title="Cetak Ulang Struk">
+
+                                <!-- Thermal Print Kasir -->
+                                <a href="{{ route('pos.receipt', $order->order_id) }}" target="_blank" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition inline-flex items-center space-x-1 shadow-sm" title="Cetak Ulang Struk Kasir">
                                     <i class="fa-solid fa-receipt"></i>
                                     <span>Struk</span>
                                 </a>
+
+                                <!-- Thermal Print Dapur (KOT) -->
+                                @if(\App\Models\Setting::get('enable_kitchen_receipt', '1') == '1')
+                                    <a href="{{ route('pos.kitchen-receipt', $order->order_id) }}" target="_blank" class="px-2 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl font-bold text-xs transition inline-flex items-center space-x-1 shadow-sm" title="Cetak Struk Dapur / KOT">
+                                        <i class="fa-solid fa-utensils"></i>
+                                    </a>
+                                @endif
+
+                                <!-- Void Button (Only if not already VOID) -->
+                                @if($order->status !== 'VOID')
+                                    <button 
+                                        type="button" 
+                                        @click="openVoidModal('{{ $order->order_id }}', '{{ $order->customer_name }}', '{{ number_format($order->grand_total, 0, ',', '.') }}')" 
+                                        class="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl font-bold text-xs transition inline-flex items-center space-x-1 shadow-sm"
+                                        title="Batalkan / Void Transaksi Ini"
+                                    >
+                                        <i class="fa-solid fa-ban"></i>
+                                        <span>Void</span>
+                                    </button>
+                                @endif
                             </td>
                         </tr>
                     @endforeach
@@ -254,14 +349,81 @@
             </table>
         </div>
 
+        <!-- MODAL VOID / PEMBATALAN TRANSAKSI -->
+        <div 
+            x-show="showVoidModal" 
+            x-cloak 
+            x-transition 
+            class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4"
+        >
+            <div @click.outside="showVoidModal = false" class="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 overflow-hidden text-left space-y-4">
+                <!-- Header -->
+                <div class="p-5 bg-red-600 text-white flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-8 h-8 rounded-xl bg-white/20 text-white flex items-center justify-center font-bold text-sm">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-extrabold text-sm">Void / Pembatalan Pesanan</h3>
+                            <p class="text-[11px] text-red-100" x-text="'No. Order: #' + selectedOrderId"></p>
+                        </div>
+                    </div>
+                    <button @click="showVoidModal = false" class="text-red-200 hover:text-white text-lg">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Form -->
+                <form :action="voidActionUrl" method="POST" class="p-6 pt-0 space-y-4">
+                    @csrf
+
+                    <div class="p-3 bg-red-50 border border-red-200 rounded-2xl text-[11px] text-red-700 space-y-1">
+                        <p class="font-bold flex items-center space-x-1">
+                            <i class="fa-solid fa-circle-info"></i>
+                            <span>Informasi Tindakan:</span>
+                        </p>
+                        <p>Total transaksi <strong x-text="'Rp ' + selectedOrderTotal"></strong> akan dikeluarkan dari omset penjualan dan stok produk yang dikelola akan otomatis <strong>dikembalikan</strong> ke sistem.</p>
+                    </div>
+
+                    <!-- Void Reason Input -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase mb-1.5">Alasan Pembatalan (Wajib) *</label>
+                        <textarea 
+                            name="void_reason" 
+                            rows="3" 
+                            required 
+                            placeholder="Contoh: Salah input meja / Pelanggan membatalkan pesanan / Salah ketik menu" 
+                            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 transition"
+                        ></textarea>
+                    </div>
+
+                    <!-- Modal Actions -->
+                    <div class="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100">
+                        <button type="button" @click="showVoidModal = false" class="px-4 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition">
+                            Batal
+                        </button>
+                        <button type="submit" class="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-red-600/30 transition active:scale-95 flex items-center space-x-1.5">
+                            <i class="fa-solid fa-ban"></i>
+                            <span>Ya, Batalkan Transaksi</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
     </div>
 
     <!-- Script for Date Range Presets & DataTable -->
     <script>
-        function dateRangePicker() {
+        function historyApp() {
             return {
                 startDate: '{{ request('start_date') }}',
                 endDate: '{{ request('end_date') }}',
+                showVoidModal: false,
+                selectedOrderId: '',
+                selectedOrderCustomer: '',
+                selectedOrderTotal: '',
+                voidActionUrl: '',
 
                 formatDate(date) {
                     const y = date.getFullYear();
@@ -302,6 +464,14 @@
                     this.$nextTick(() => {
                         document.getElementById('filterForm').submit();
                     });
+                },
+
+                openVoidModal(orderId, customer, total) {
+                    this.selectedOrderId = orderId;
+                    this.selectedOrderCustomer = customer;
+                    this.selectedOrderTotal = total;
+                    this.voidActionUrl = `/admin/orders/${orderId}/void`;
+                    this.showVoidModal = true;
                 }
             };
         }

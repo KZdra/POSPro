@@ -43,6 +43,11 @@
                 @foreach($order->items as $item)
                     <div class="text-[11px]">
                         <div class="font-bold text-slate-900">{{ $item->product_name }}</div>
+                        @if(!empty($item->notes))
+                            <div class="text-[10px] text-amber-700 font-bold pl-1 border-l-2 border-amber-400 my-0.5">
+                                Note: {{ $item->notes }}
+                            </div>
+                        @endif
                         <div class="flex justify-between text-slate-500 text-[10px] mt-0.5">
                             <span>{{ $item->qty }} x Rp {{ number_format($item->price, 0, ',', '.') }}</span>
                             <span class="font-bold text-slate-800">Rp {{ number_format($item->subtotal, 0, ',', '.') }}</span>
@@ -60,7 +65,12 @@
 
                 @if($order->discount > 0)
                     <div class="flex justify-between text-red-600">
-                        <span>Diskon ({{ $order->discount_percent > 0 ? floatval($order->discount_percent) . '%' : 'Khusus' }})</span>
+                        <span>
+                            Diskon {{ $order->discount_percent > 0 ? '(' . floatval($order->discount_percent) . '%)' : '' }}
+                            @if($order->coupon_code)
+                                <strong class="text-blue-600">[{{ $order->coupon_code }}]</strong>
+                            @endif
+                        </span>
                         <span>-Rp {{ number_format($order->discount, 0, ',', '.') }}</span>
                     </div>
                 @endif
@@ -128,14 +138,24 @@
         </div>
 
         <!-- Print & Navigation Actions (Hidden during print) -->
-        <div class="flex items-center space-x-3 mt-6 no-print">
+        <div class="flex flex-wrap items-center justify-center gap-3 mt-6 no-print">
             <button 
                 onclick="window.print()" 
                 class="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-lg transition active:scale-95 flex items-center space-x-2"
             >
                 <i class="fa-solid fa-print"></i>
-                <span>Cetak Struk (Print)</span>
+                <span>Cetak Struk Kasir</span>
             </button>
+
+            @if(\App\Models\Setting::get('enable_kitchen_receipt', '1') == '1')
+                <a 
+                    href="{{ route('pos.kitchen-receipt', $order->order_id) }}" 
+                    class="px-5 py-3 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-amber-600/30 transition active:scale-95 flex items-center space-x-2"
+                >
+                    <i class="fa-solid fa-utensils"></i>
+                    <span>Struk Dapur (KOT)</span>
+                </a>
+            @endif
 
             <a 
                 href="{{ route('pos.index') }}" 
