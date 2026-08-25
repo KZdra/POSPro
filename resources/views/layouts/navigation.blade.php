@@ -37,6 +37,10 @@
                         <a href="{{ route('users.index') }}" class="inline-flex items-center px-3 py-2 rounded-xl text-sm font-semibold transition-colors {{ request()->routeIs('users.*') ? 'text-blue-600 bg-blue-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' }}">
                             <i class="fa-solid fa-users-gear mr-1.5 text-slate-400"></i> {{ __('User & Kasir') }}
                         </a>
+
+                        <a href="{{ route('coupons.index') }}" class="inline-flex items-center px-3 py-2 rounded-xl text-sm font-semibold transition-colors {{ request()->routeIs('coupons.*') ? 'text-blue-600 bg-blue-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' }}">
+                            <i class="fa-solid fa-ticket mr-1.5 text-slate-400"></i> {{ __('Kupon') }}
+                        </a>
                     @endif
 
                     <!-- Sales History (Visible to both Kasir & Admin) -->

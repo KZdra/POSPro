@@ -224,5 +224,48 @@ class DatabaseSeeder extends Seeder
                 $prod
             );
         }
+
+        // 5. Create Sample Coupons / Vouchers
+        $coupons = [
+            [
+                'code' => 'COFFEE2026',
+                'title' => 'Spesial Pecinta Kopi 15%',
+                'category_id' => $catModels['coffee']->id,
+                'discount_type' => 'PERCENT',
+                'discount_value' => 15,
+                'min_order_amount' => 0,
+                'max_discount_amount' => 25000,
+                'usage_limit' => 200,
+                'is_active' => true,
+            ],
+            [
+                'code' => 'FOOD10',
+                'title' => 'Diskon Makanan Utama 10%',
+                'category_id' => $catModels['food']->id,
+                'discount_type' => 'PERCENT',
+                'discount_value' => 10,
+                'min_order_amount' => 20000,
+                'max_discount_amount' => 15000,
+                'usage_limit' => 100,
+                'is_active' => true,
+            ],
+            [
+                'code' => 'HEMAT20K',
+                'title' => 'Potongan Langsung Rp 20.000 (Semua Menu)',
+                'category_id' => null,
+                'discount_type' => 'FIXED',
+                'discount_value' => 20000,
+                'min_order_amount' => 50000,
+                'usage_limit' => 50,
+                'is_active' => true,
+            ],
+        ];
+
+        foreach ($coupons as $coupon) {
+            \App\Models\Coupon::updateOrCreate(
+                ['code' => $coupon['code']],
+                $coupon
+            );
+        }
     }
 }

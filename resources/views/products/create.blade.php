@@ -69,7 +69,7 @@
                         <!-- SKU & Barcode -->
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Kode SKU</label>
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Kode SKU <span class="text-slate-400 font-normal lowercase">(opsional)</span></label>
                                 <input 
                                     type="text" 
                                     name="sku" 
@@ -79,12 +79,12 @@
                                 >
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Barcode Scanner</label>
+                                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Barcode Scanner <span class="text-slate-400 font-normal lowercase">(opsional)</span></label>
                                 <input 
                                     type="text" 
                                     name="barcode" 
                                     value="{{ old('barcode') }}" 
-                                    placeholder="8991234..." 
+                                    placeholder="Boleh kosong" 
                                     class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                                 >
                             </div>

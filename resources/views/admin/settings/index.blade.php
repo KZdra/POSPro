@@ -11,7 +11,7 @@
     <div class="py-8 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
             
-            <form action="{{ route('admin.settings.update') }}" method="POST" class="space-y-6" x-data="{ enableTax: {{ $settings['enable_tax'] == '1' ? 'true' : 'false' }}, enableService: {{ $settings['enable_service'] == '1' ? 'true' : 'false' }} }">
+            <form action="{{ route('admin.settings.update') }}" method="POST" class="space-y-6" x-data="{ enableTax: {{ $settings['enable_tax'] == '1' ? 'true' : 'false' }}, enableService: {{ $settings['enable_service'] == '1' ? 'true' : 'false' }}, enableKitchenReceipt: {{ $settings['enable_kitchen_receipt'] == '1' ? 'true' : 'false' }} }">
                 @csrf
 
                 <!-- SECTION 1: INFORMASI TOKO -->
@@ -144,6 +144,37 @@
                                     >
                                     <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 font-bold text-xs">%</span>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 3: STRUK DAPUR / BAR (KITCHEN ORDER TICKET) -->
+                <div class="space-y-4 pt-4 border-t border-slate-100">
+                    <h3 class="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-2 flex items-center space-x-2">
+                        <i class="fa-solid fa-utensils text-amber-600"></i>
+                        <span>Pengaturan Struk Dapur / Bar (Kitchen Order Ticket)</span>
+                    </h3>
+
+                    <div class="p-4 bg-amber-50/50 rounded-2xl border border-amber-200 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <span class="text-xs font-extrabold text-slate-900 block">Tombol & Fitur Cetak Struk Dapur</span>
+                                <span class="text-[11px] text-slate-500" x-text="enableKitchenReceipt ? 'Aktif: Tombol Cetak Struk Dapur muncul setelah kasir menyelesaikan transaksi' : 'Nonaktif: Hanya mencetak struk kasir reguler'"></span>
+                            </div>
+                            <div class="flex items-center">
+                                <button 
+                                    type="button" 
+                                    @click="enableKitchenReceipt = !enableKitchenReceipt" 
+                                    :class="enableKitchenReceipt ? 'bg-amber-600' : 'bg-slate-300'" 
+                                    class="relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none shadow-inner"
+                                >
+                                    <span 
+                                        :class="enableKitchenReceipt ? 'translate-x-5' : 'translate-x-0'" 
+                                        class="pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out"
+                                    ></span>
+                                </button>
+                                <input type="hidden" name="enable_kitchen_receipt" :value="enableKitchenReceipt ? '1' : '0'">
                             </div>
                         </div>
                     </div>

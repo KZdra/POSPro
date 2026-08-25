@@ -7,6 +7,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\CouponController;
 use Illuminate\Support\Facades\Route;
 
 // Authenticated Routes (Kasir & Admin)
@@ -15,13 +16,16 @@ Route::middleware(['auth'])->group(function () {
     // POS Cashier Routes
     Route::get('/', [POSController::class, 'index'])->name('pos.index');
     Route::post('/checkout', [POSController::class, 'checkout'])->name('pos.checkout');
+    Route::post('/pos/validate-coupon', [POSController::class, 'validateCoupon'])->name('pos.validate-coupon');
     Route::get('/status/{orderId}', [POSController::class, 'checkStatus'])->name('pos.status');
     Route::post('/pos/manual-settle/{orderId}', [POSController::class, 'manualSettle'])->name('pos.manual-settle');
     Route::get('/print-receipt/{orderId}', [POSController::class, 'printReceipt'])->name('pos.receipt');
+    Route::get('/kitchen-receipt/{orderId}', [POSController::class, 'kitchenReceipt'])->name('pos.kitchen-receipt');
 
-    // Sales History & PDF Export (Accessible by Kasir & Admin)
+    // Sales History & Void (Accessible by Kasir & Admin)
     Route::get('/admin/history', [AdminController::class, 'history'])->name('admin.history');
     Route::get('/admin/history/export-pdf', [AdminController::class, 'exportPdf'])->name('admin.history.pdf');
+    Route::post('/admin/orders/{orderId}/void', [AdminController::class, 'voidOrder'])->name('admin.orders.void');
 
     // Admin-Only Protected Routes
     Route::middleware(['admin'])->prefix('admin')->group(function () {
@@ -31,6 +35,7 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('categories', CategoryController::class);
         Route::resource('products', ProductController::class);
         Route::resource('users', UserController::class);
+        Route::resource('coupons', CouponController::class);
 
         // Store Settings
         Route::get('/settings', [SettingController::class, 'index'])->name('admin.settings');
