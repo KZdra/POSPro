@@ -18,6 +18,9 @@ class SettingController extends Controller
             'tax_rate' => Setting::get('tax_rate', '11'),
             'enable_service' => Setting::get('enable_service', '0'),
             'service_rate' => Setting::get('service_rate', '5'),
+            'enable_order_types' => Setting::get('enable_order_types', '1'),
+            'service_charge_on_takeaway' => Setting::get('service_charge_on_takeaway', '0'),
+            'tax_on_takeaway' => Setting::get('tax_on_takeaway', '1'),
             'enable_kitchen_receipt' => Setting::get('enable_kitchen_receipt', '1'),
             'payment_gateway_url' => Setting::get('payment_gateway_url', env('PAYMENT_GATEWAY_URL', 'http://localhost:3000/api/v1/qris/generate')),
             'payment_gateway_api_key' => Setting::get('payment_gateway_api_key', env('PAYMENT_GATEWAY_API_KEY', 'secret_key_hp_123')),
@@ -54,6 +57,11 @@ class SettingController extends Controller
         Setting::set('enable_service', $request->boolean('enable_service') ? '1' : '0');
         Setting::set('service_rate', $request->filled('service_rate') ? $request->service_rate : '5');
 
+        // Order Types (Dine In / Take Away) configuration
+        Setting::set('enable_order_types', $request->boolean('enable_order_types') ? '1' : '0');
+        Setting::set('service_charge_on_takeaway', $request->boolean('service_charge_on_takeaway') ? '1' : '0');
+        Setting::set('tax_on_takeaway', $request->boolean('tax_on_takeaway') ? '1' : '0');
+
         // Kitchen Order Ticket
         Setting::set('enable_kitchen_receipt', $request->boolean('enable_kitchen_receipt') ? '1' : '0');
 
@@ -63,6 +71,6 @@ class SettingController extends Controller
         Setting::set('backend_api_key', $request->filled('backend_api_key') ? trim($request->backend_api_key) : '');
         Setting::set('qris_expires_minutes', $request->filled('qris_expires_minutes') ? $request->qris_expires_minutes : '15');
 
-        return redirect()->route('admin.settings')->with('success', 'Pengaturan toko, pajak, struk dapur, dan payment gateway QRIS berhasil diperbarui!');
+        return redirect()->route('admin.settings')->with('success', 'Pengaturan toko, pajak, tipe pesanan, struk dapur, dan payment gateway QRIS berhasil diperbarui!');
     }
 }

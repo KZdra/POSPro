@@ -34,8 +34,16 @@
                 </div>
                 <div class="flex justify-between">
                     <span class="text-slate-500">Pelanggan</span>
-                    <span>{{ $order->customer_name }}</span>
+                    <span class="font-bold text-slate-900">{{ $order->customer_name }}</span>
                 </div>
+                @if($order->order_type)
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Tipe Pesanan</span>
+                        <span class="font-bold text-slate-900">
+                            {{ str_replace('_', ' ', $order->order_type)}}
+                        </span>
+                    </div>
+                @endif
             </div>
 
             <!-- Itemized List -->

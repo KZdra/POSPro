@@ -20,9 +20,16 @@
                 </div>
                 <div class="flex justify-between items-center">
                     <span class="font-bold">Pelanggan / Meja</span>
-                    <span class="font-black text-base bg-black text-white px-2.5 py-0.5 rounded font-sans uppercase">
-                        {{ $order->customer_name }}
-                    </span>
+                    <div class="flex items-center space-x-1.5">
+                        <span class="font-black text-base bg-black text-white px-2.5 py-0.5 rounded font-sans uppercase">
+                            {{ $order->customer_name }}
+                        </span>
+                        @if($order->order_type)
+                            <span class="font-black text-xs px-2 py-0.5 rounded font-sans uppercase {{ $order->order_type === 'TAKE_AWAY' ? 'bg-amber-500 text-white' : 'bg-blue-600 text-white' }}">
+                                {{ $order->order_type === 'TAKE_AWAY' ? 'TAKE AWAY' : 'DINE IN' }}
+                            </span>
+                        @endif
+                    </div>
                 </div>
                 <div class="flex justify-between text-[11px] text-slate-600 pt-1">
                     <span>Waktu: {{ $order->created_at->format('d/m/Y H:i:s') }}</span>

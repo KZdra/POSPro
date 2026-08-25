@@ -31,6 +31,7 @@ class Order extends Model
         'settled_by',
         'status',
         'payment_method',
+        'order_type',
         'void_reason',
         'void_by',
         'voided_at',

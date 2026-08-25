@@ -200,6 +200,32 @@
                 </button>
             </div>
 
+            <!-- Dine In / Take Away Order Type Selector (Only if enableOrderTypes is true) -->
+            <template x-if="enableOrderTypes">
+                <div class="px-3.5 py-2 bg-slate-100/70 border-b border-slate-200/80">
+                    <div class="grid grid-cols-2 gap-1.5 p-1 bg-slate-200/80 rounded-xl">
+                        <button 
+                            type="button" 
+                            @click="orderType = 'DINE_IN'" 
+                            :class="orderType === 'DINE_IN' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+                            class="py-1.5 px-2 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center space-x-1.5 select-none cursor-pointer"
+                        >
+                            <i class="fa-solid fa-utensils text-[11px]"></i>
+                            <span>Dine In</span>
+                        </button>
+                        <button 
+                            type="button" 
+                            @click="orderType = 'TAKE_AWAY'" 
+                            :class="orderType === 'TAKE_AWAY' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+                            class="py-1.5 px-2 rounded-lg text-xs font-extrabold transition-all flex items-center justify-center space-x-1.5 select-none cursor-pointer"
+                        >
+                            <i class="fa-solid fa-bag-shopping text-[11px]"></i>
+                            <span>Take Away</span>
+                        </button>
+                    </div>
+                </div>
+            </template>
+
             <!-- Cart Items List (Scrollable) -->
             <div class="flex-1 overflow-y-auto p-3.5 md:p-4 space-y-3 divide-y divide-slate-100">
                 <template x-if="cart.length === 0">
@@ -330,16 +356,26 @@
                     <!-- Service Charge (If Enabled) -->
                     <template x-if="enableService">
                         <div class="flex justify-between items-center text-slate-500 font-semibold pt-1 border-t border-slate-200/60">
-                            <span x-text="'Biaya Layanan (' + serviceRate + '%)'"></span>
-                            <span class="font-bold text-slate-800" x-text="'+Rp ' + formatNumber(serviceAmount)"></span>
+                            <div class="flex items-center space-x-1.5">
+                                <span x-text="'Biaya Layanan (' + serviceRate + '%)'"></span>
+                                <template x-if="isTakeAway && !serviceChargeOnTakeaway">
+                                    <span class="text-[9px] px-1.5 py-0.5 bg-emerald-100 text-emerald-800 font-extrabold rounded-md">Bebas Take Away</span>
+                                </template>
+                            </div>
+                            <span class="font-bold" :class="isTakeAway && !serviceChargeOnTakeaway ? 'text-emerald-600' : 'text-slate-800'" x-text="(isTakeAway && !serviceChargeOnTakeaway) ? 'Rp 0' : '+Rp ' + formatNumber(serviceAmount)"></span>
                         </div>
                     </template>
 
                     <!-- PPN Tax (If Enabled) -->
                     <template x-if="enableTax">
                         <div class="flex justify-between items-center text-slate-500 font-semibold">
-                            <span x-text="'Pajak PPN (' + taxRate + '%)'"></span>
-                            <span class="font-bold text-slate-800" x-text="'+Rp ' + formatNumber(taxAmount)"></span>
+                            <div class="flex items-center space-x-1.5">
+                                <span x-text="'Pajak PPN (' + taxRate + '%)'"></span>
+                                <template x-if="isTakeAway && !taxOnTakeaway">
+                                    <span class="text-[9px] px-1.5 py-0.5 bg-emerald-100 text-emerald-800 font-extrabold rounded-md">Bebas PPN</span>
+                                </template>
+                            </div>
+                            <span class="font-bold" :class="isTakeAway && !taxOnTakeaway ? 'text-emerald-600' : 'text-slate-800'" x-text="(isTakeAway && !taxOnTakeaway) ? 'Rp 0' : '+Rp ' + formatNumber(taxAmount)"></span>
                         </div>
                     </template>
 
@@ -630,14 +666,15 @@
                         @csrf
                         <input type="hidden" name="items" :value="JSON.stringify(cart)">
                         <input type="hidden" name="payment_method" :value="paymentMethod">
+                        <input type="hidden" name="order_type" :value="enableOrderTypes ? orderType : ''">
                         <input type="hidden" name="customer_name" :value="customerName">
                         <input type="hidden" name="discount" :value="discountAmount">
                         <input type="hidden" name="discount_percent" :value="discountPercent">
                         <input type="hidden" name="coupon_code" :value="appliedCoupon ? appliedCoupon.coupon_code : ''">
                         <input type="hidden" name="service" :value="serviceAmount">
-                        <input type="hidden" name="service_percent" :value="enableService ? serviceRate : 0">
+                        <input type="hidden" name="service_percent" :value="activeServiceRate">
                         <input type="hidden" name="tax" :value="taxAmount">
-                        <input type="hidden" name="tax_percent" :value="enableTax ? taxRate : 0">
+                        <input type="hidden" name="tax_percent" :value="activeTaxRate">
                         <input type="hidden" name="cash_received" :value="cashReceived">
                     </form>
                 </div>
@@ -1055,6 +1092,10 @@
                 taxRate: {{ $taxSettings['tax_rate'] }},
                 enableService: {{ $taxSettings['enable_service'] ? 'true' : 'false' }},
                 serviceRate: {{ $taxSettings['service_rate'] }},
+                enableOrderTypes: {{ $taxSettings['enable_order_types'] ? 'true' : 'false' }},
+                serviceChargeOnTakeaway: {{ $taxSettings['service_charge_on_takeaway'] ? 'true' : 'false' }},
+                taxOnTakeaway: {{ $taxSettings['tax_on_takeaway'] ? 'true' : 'false' }},
+                orderType: 'DINE_IN',
                 paymentMethod: 'CASH',
                 cashReceived: 0,
                 showPaymentModal: false,
@@ -1116,12 +1157,28 @@
                     return Math.max(0, this.subtotal - this.discountAmount);
                 },
 
+                get isTakeAway() {
+                    return this.enableOrderTypes && this.orderType === 'TAKE_AWAY';
+                },
+
+                get activeServiceRate() {
+                    if (!this.enableService) return 0;
+                    if (this.isTakeAway && !this.serviceChargeOnTakeaway) return 0;
+                    return this.serviceRate;
+                },
+
                 get serviceAmount() {
-                    return this.enableService ? Math.round(this.subtotalAfterDiscount * (this.serviceRate / 100)) : 0;
+                    return Math.round(this.subtotalAfterDiscount * (this.activeServiceRate / 100));
+                },
+
+                get activeTaxRate() {
+                    if (!this.enableTax) return 0;
+                    if (this.isTakeAway && !this.taxOnTakeaway) return 0;
+                    return this.taxRate;
                 },
 
                 get taxAmount() {
-                    return this.enableTax ? Math.round((this.subtotalAfterDiscount + this.serviceAmount) * (this.taxRate / 100)) : 0;
+                    return Math.round((this.subtotalAfterDiscount + this.serviceAmount) * (this.activeTaxRate / 100));
                 },
 
                 get grandTotal() {
@@ -1427,6 +1484,13 @@
 
                 setCustomerPreset(preset) {
                     this.customerName = preset;
+                    if (this.enableOrderTypes) {
+                        if (preset === 'Take Away' || preset === 'Online/Ojol') {
+                            this.orderType = 'TAKE_AWAY';
+                        } else if (preset === 'Dine In' || preset.startsWith('Meja')) {
+                            this.orderType = 'DINE_IN';
+                        }
+                    }
                 },
 
                 openPaymentModal() {
