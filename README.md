@@ -188,7 +188,7 @@ pos/
    npm install
    ```
 
-3. **Konfigurasi Database (`.env`)**:
+3. **Konfigurasi Database & Payment Gateway (`.env`)**:
    ```env
    APP_NAME="POSPro"
    APP_URL=http://localhost:8000
@@ -199,6 +199,13 @@ pos/
    DB_DATABASE=pos
    DB_USERNAME=root
    DB_PASSWORD=
+
+   # ==========================================
+   # MINI PAYMENT GATEWAY & QRIS INTEGRATION
+   # ==========================================
+   PAYMENT_GATEWAY_URL=http://localhost:3000/api/v1/qris/generate
+   PAYMENT_GATEWAY_API_KEY=secret_key_hp_123
+   BACKEND_API_KEY=secret_backend_123
    ```
 
 4. **Generate Key & Symlink Storage**:

@@ -19,6 +19,9 @@ class SettingController extends Controller
             'enable_service' => Setting::get('enable_service', '0'),
             'service_rate' => Setting::get('service_rate', '5'),
             'enable_kitchen_receipt' => Setting::get('enable_kitchen_receipt', '1'),
+            'payment_gateway_url' => Setting::get('payment_gateway_url', env('PAYMENT_GATEWAY_URL', 'http://localhost:3000/api/v1/qris/generate')),
+            'payment_gateway_api_key' => Setting::get('payment_gateway_api_key', env('PAYMENT_GATEWAY_API_KEY', 'secret_key_hp_123')),
+            'backend_api_key' => Setting::get('backend_api_key', env('BACKEND_API_KEY', 'secret_backend_123')),
             'qris_expires_minutes' => Setting::get('qris_expires_minutes', '15'),
         ];
 
@@ -34,6 +37,9 @@ class SettingController extends Controller
             'receipt_footer' => 'nullable|string|max:500',
             'tax_rate' => 'nullable|numeric|min:0|max:100',
             'service_rate' => 'nullable|numeric|min:0|max:100',
+            'payment_gateway_url' => 'nullable|url|max:500',
+            'payment_gateway_api_key' => 'nullable|string|max:255',
+            'backend_api_key' => 'nullable|string|max:255',
             'qris_expires_minutes' => 'nullable|integer|min:1|max:1440',
         ]);
 
@@ -51,9 +57,12 @@ class SettingController extends Controller
         // Kitchen Order Ticket
         Setting::set('enable_kitchen_receipt', $request->boolean('enable_kitchen_receipt') ? '1' : '0');
 
-        // QRIS Expiration
+        // Payment Gateway QRIS Integration
+        Setting::set('payment_gateway_url', $request->filled('payment_gateway_url') ? trim($request->payment_gateway_url) : 'http://localhost:3000/api/v1/qris/generate');
+        Setting::set('payment_gateway_api_key', $request->filled('payment_gateway_api_key') ? trim($request->payment_gateway_api_key) : '');
+        Setting::set('backend_api_key', $request->filled('backend_api_key') ? trim($request->backend_api_key) : '');
         Setting::set('qris_expires_minutes', $request->filled('qris_expires_minutes') ? $request->qris_expires_minutes : '15');
 
-        return redirect()->route('admin.settings')->with('success', 'Pengaturan toko, pajak PPN, biaya layanan, struk dapur, dan expired QRIS berhasil diperbarui!');
+        return redirect()->route('admin.settings')->with('success', 'Pengaturan toko, pajak, struk dapur, dan payment gateway QRIS berhasil diperbarui!');
     }
 }
