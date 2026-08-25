@@ -18,6 +18,9 @@
                 x-data="{ 
                     enableTax: {{ $settings['enable_tax'] == '1' ? 'true' : 'false' }}, 
                     enableService: {{ $settings['enable_service'] == '1' ? 'true' : 'false' }}, 
+                    enableOrderTypes: {{ $settings['enable_order_types'] == '1' ? 'true' : 'false' }},
+                    serviceChargeOnTakeaway: {{ $settings['service_charge_on_takeaway'] == '1' ? 'true' : 'false' }},
+                    taxOnTakeaway: {{ $settings['tax_on_takeaway'] == '1' ? 'true' : 'false' }},
                     enableKitchenReceipt: {{ $settings['enable_kitchen_receipt'] == '1' ? 'true' : 'false' }},
                     gatewayUrl: '{{ addslashes($settings['payment_gateway_url']) }}',
                     gatewayApiKey: '{{ addslashes($settings['payment_gateway_api_key']) }}',
@@ -181,7 +184,87 @@
                     </div>
                 </div>
 
-                <!-- SECTION 3: STRUK DAPUR / BAR (KITCHEN ORDER TICKET) -->
+                <!-- SECTION 3: TIPE PESANAN (DINE IN VS TAKE AWAY) -->
+                <div class="space-y-4 pt-4 border-t border-slate-100">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <h3 class="text-sm font-extrabold text-slate-900 flex items-center space-x-2">
+                            <i class="fa-solid fa-utensils text-blue-600"></i>
+                            <span>Pilihan Tipe Pesanan (Dine In vs Take Away)</span>
+                        </h3>
+                        <span class="px-2.5 py-0.5 bg-blue-100 text-blue-800 font-extrabold text-[10px] rounded-full">
+                            F&B / Warung Mode
+                        </span>
+                    </div>
+
+                    <!-- Master Order Types Toggle -->
+                    <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <span class="text-xs font-extrabold text-slate-900 block">Pilihan Dine In / Take Away di Layar Kasir</span>
+                                <span class="text-[11px] text-slate-400" x-text="enableOrderTypes ? 'Aktif: Kasir dapat memilih Dine In (Makan di Tempat) atau Take Away (Bawa Pulang)' : 'Nonaktif: Mode Warung/Retail Murni (Tanpa pilihan Dine In / Take Away)'"></span>
+                            </div>
+                            <div class="flex items-center">
+                                <button 
+                                    type="button" 
+                                    @click="enableOrderTypes = !enableOrderTypes" 
+                                    :class="enableOrderTypes ? 'bg-blue-600' : 'bg-slate-300'" 
+                                    class="relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none shadow-inner"
+                                >
+                                    <span 
+                                        :class="enableOrderTypes ? 'translate-x-5' : 'translate-x-0'" 
+                                        class="pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out"
+                                    ></span>
+                                </button>
+                                <input type="hidden" name="enable_order_types" :value="enableOrderTypes ? '1' : '0'">
+                            </div>
+                        </div>
+
+                        <!-- Sub-rules for Take Away (Service Charge & Tax) -->
+                        <div x-show="enableOrderTypes" x-transition class="pt-3 border-t border-slate-200/60 grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <!-- Service Charge on Takeaway -->
+                            <div class="p-3 bg-white rounded-xl border border-slate-200/80 flex items-center justify-between">
+                                <div>
+                                    <span class="text-[11px] font-extrabold text-slate-800 block">Biaya Layanan pada Take Away</span>
+                                    <span class="text-[10px] text-slate-400 block" x-text="serviceChargeOnTakeaway ? 'Take Away TETAP dikenakan Service Charge' : 'Take Away BEBAS Biaya Layanan (Rp 0)'"></span>
+                                </div>
+                                <button 
+                                    type="button" 
+                                    @click="serviceChargeOnTakeaway = !serviceChargeOnTakeaway" 
+                                    :class="serviceChargeOnTakeaway ? 'bg-blue-600' : 'bg-slate-300'" 
+                                    class="relative inline-flex h-6 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none shadow-inner"
+                                >
+                                    <span 
+                                        :class="serviceChargeOnTakeaway ? 'translate-x-4' : 'translate-x-0'" 
+                                        class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out"
+                                    ></span>
+                                </button>
+                                <input type="hidden" name="service_charge_on_takeaway" :value="serviceChargeOnTakeaway ? '1' : '0'">
+                            </div>
+
+                            <!-- Tax on Takeaway -->
+                            <div class="p-3 bg-white rounded-xl border border-slate-200/80 flex items-center justify-between">
+                                <div>
+                                    <span class="text-[11px] font-extrabold text-slate-800 block">Pajak PPN pada Take Away</span>
+                                    <span class="text-[10px] text-slate-400 block" x-text="taxOnTakeaway ? 'Take Away TETAP dikenakan PPN' : 'Take Away BEBAS Pajak PPN (Rp 0)'"></span>
+                                </div>
+                                <button 
+                                    type="button" 
+                                    @click="taxOnTakeaway = !taxOnTakeaway" 
+                                    :class="taxOnTakeaway ? 'bg-blue-600' : 'bg-slate-300'" 
+                                    class="relative inline-flex h-6 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none shadow-inner"
+                                >
+                                    <span 
+                                        :class="taxOnTakeaway ? 'translate-x-4' : 'translate-x-0'" 
+                                        class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out"
+                                    ></span>
+                                </button>
+                                <input type="hidden" name="tax_on_takeaway" :value="taxOnTakeaway ? '1' : '0'">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 4: STRUK DAPUR / BAR (KITCHEN ORDER TICKET) -->
                 <div class="space-y-4 pt-4 border-t border-slate-100">
                     <h3 class="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-2 flex items-center space-x-2">
                         <i class="fa-solid fa-utensils text-amber-600"></i>

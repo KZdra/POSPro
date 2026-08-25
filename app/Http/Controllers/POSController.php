@@ -31,6 +31,9 @@ class POSController extends Controller
             'tax_rate' => floatval(Setting::get('tax_rate', '11')),
             'enable_service' => Setting::get('enable_service', '0') == '1',
             'service_rate' => floatval(Setting::get('service_rate', '5')),
+            'enable_order_types' => Setting::get('enable_order_types', '1') == '1',
+            'service_charge_on_takeaway' => Setting::get('service_charge_on_takeaway', '0') == '1',
+            'tax_on_takeaway' => Setting::get('tax_on_takeaway', '1') == '1',
             'enable_kitchen_receipt' => Setting::get('enable_kitchen_receipt', '1') == '1',
         ];
 
@@ -73,6 +76,7 @@ class POSController extends Controller
         $request->validate([
             'items' => 'required|string',
             'payment_method' => 'required|in:CASH,QRIS',
+            'order_type' => 'nullable|in:DINE_IN,TAKE_AWAY',
             'customer_name' => 'required|string|max:100',
             'cash_received' => 'nullable|numeric|min:0',
             'discount' => 'nullable|numeric|min:0',
@@ -92,6 +96,9 @@ class POSController extends Controller
         if (empty($items)) {
             return back()->with('error', 'Keranjang belanja masih kosong!');
         }
+
+        $enableOrderTypes = Setting::get('enable_order_types', '1') == '1';
+        $orderType = $enableOrderTypes ? ($request->order_type ?: 'DINE_IN') : null;
 
         $baseTotal = 0;
         foreach ($items as $item) {
@@ -113,11 +120,23 @@ class POSController extends Controller
 
         $subtotalAfterDiscount = max(0, $baseTotal - $discountAmount);
 
+        // Service charge calculation (exempt if Take Away & service_charge_on_takeaway is false)
         $servicePercent = floatval($request->service_percent ?? 0);
-        $serviceAmount = floatval($request->service ?? ($subtotalAfterDiscount * ($servicePercent / 100)));
+        if ($orderType === 'TAKE_AWAY' && Setting::get('service_charge_on_takeaway', '0') != '1') {
+            $servicePercent = 0;
+            $serviceAmount = 0;
+        } else {
+            $serviceAmount = floatval($request->service ?? ($subtotalAfterDiscount * ($servicePercent / 100)));
+        }
 
+        // Tax calculation (exempt if Take Away & tax_on_takeaway is false)
         $taxPercent = floatval($request->tax_percent ?? 0);
-        $taxAmount = floatval($request->tax ?? (($subtotalAfterDiscount + $serviceAmount) * ($taxPercent / 100)));
+        if ($orderType === 'TAKE_AWAY' && Setting::get('tax_on_takeaway', '1') != '1') {
+            $taxPercent = 0;
+            $taxAmount = 0;
+        } else {
+            $taxAmount = floatval($request->tax ?? (($subtotalAfterDiscount + $serviceAmount) * ($taxPercent / 100)));
+        }
 
         $paymentMethod = $request->payment_method;
         $uniqueCode = ($paymentMethod === 'QRIS') ? rand(1, 99) : 0;
@@ -133,6 +152,7 @@ class POSController extends Controller
             'user_id' => Auth::id(),
             'order_id' => $orderId,
             'customer_name' => trim($request->customer_name),
+            'order_type' => $orderType,
             'base_total' => $baseTotal,
             'discount' => $discountAmount,
             'discount_percent' => $discountPercent,
@@ -143,8 +163,8 @@ class POSController extends Controller
             'tax_percent' => $taxPercent,
             'unique_code' => $uniqueCode,
             'grand_total' => $grandTotal,
-            'cash_received' => $cashReceived,
-            'cash_change' => $cashChange,
+            'cash_received' => ($paymentMethod === 'CASH') ? $cashReceived : 0,
+            'cash_change' => ($paymentMethod === 'CASH') ? $cashChange : 0,
             'notes' => $request->notes,
             'status' => ($paymentMethod === 'CASH') ? 'PAID' : 'PENDING',
             'payment_method' => $paymentMethod,

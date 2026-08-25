@@ -67,7 +67,17 @@
 
 ---
 
-### 6. ☕ All-in-One Mode (Cafe/Resto vs Warung/Retail)
+### 6. 🍽️ Mode Tipe Pesanan (Dine In vs Take Away) & Fleksibilitas Biaya Layanan
+- **Dine In vs Take Away Switcher**:
+  - Kasir dapat memilih tipe pesanan **Dine In (Makan di Tempat)** atau **Take Away (Bungkus)** langsung dari sidebar keranjang kasir.
+- **Bebas Biaya Layanan pada Take Away**:
+  - Diatur melalui Pengaturan Admin (`/admin/settings`). Secara default standar F&B, pesanan Take Away otomatis dibebaskan dari biaya layanan (*Service Charge = Rp 0*).
+- **Mode Warung / Retail Murni**:
+  - Fitur Dine In / Take Away dapat dinonaktifkan sepenuhnya di Admin Settings jika POS digunakan untuk usaha warung, minimarket, atau toko retail kelontong biasa (`order_type = null`).
+
+---
+
+### 7. ☕ All-in-One Mode (Cafe/Resto vs Warung/Retail)
 Setiap produk dapat diatur jenis pengelolaannya:
 - **Mode Cafe / Resto (`Kelola Stok: OFF`)**:
   - Untuk menu olahan/masakan (*Kopi, Espresso, Makanan Olahan*).
