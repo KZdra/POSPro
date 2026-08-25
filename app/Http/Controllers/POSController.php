@@ -172,8 +172,8 @@ class POSController extends Controller
 
         // 3. Process QRIS flow if QRIS selected
         if ($paymentMethod === 'QRIS') {
-            $nodeJsUrl = env('PAYMENT_GATEWAY_URL', 'http://localhost:3000/api/v1/qris/generate');
-            $apiKey = env('PAYMENT_GATEWAY_API_KEY', 'secret_key_hp_123');
+            $nodeJsUrl = Setting::get('payment_gateway_url', env('PAYMENT_GATEWAY_URL', 'http://localhost:3000/api/v1/qris/generate'));
+            $apiKey = Setting::get('payment_gateway_api_key', env('PAYMENT_GATEWAY_API_KEY', 'secret_key_hp_123'));
             $expiresInMinutes = (int) Setting::get('qris_expires_minutes', '15');
 
             try {
@@ -262,7 +262,7 @@ class POSController extends Controller
     public function webhookCallback(Request $request)
     {
         $backendApiKey = $request->header('x-api-key');
-        $expectedKey = env('BACKEND_API_KEY', 'secret_backend_123');
+        $expectedKey = Setting::get('backend_api_key', env('BACKEND_API_KEY', 'secret_backend_123'));
 
         if ($backendApiKey !== $expectedKey) {
             return response()->json(['message' => 'Unauthorized key'], 401);
