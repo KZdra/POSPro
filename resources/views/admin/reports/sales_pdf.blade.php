@@ -150,6 +150,8 @@
         .badge-pending { background-color: #fef3c7; color: #92400e; }
         .badge-cash { background-color: #dbeafe; color: #1e40af; }
         .badge-qris { background-color: #ede9fe; color: #5b21b6; }
+        .badge-debit { background-color: #e0e7ff; color: #3730a3; }
+        .badge-transfer { background-color: #ccfbf1; color: #115e59; }
 
         /* Signatures */
         .signature-table {
@@ -213,16 +215,16 @@
                 <div class="kpi-value text-blue">Rp {{ number_format($totalNetRevenue, 0, ',', '.') }}</div>
             </td>
             <td class="kpi-card" style="width: 25%;">
+                <div class="kpi-label">Total Modal (HPP)</div>
+                <div class="kpi-value" style="color: #64748b;">Rp {{ number_format($totalHpp, 0, ',', '.') }}</div>
+            </td>
+            <td class="kpi-card" style="width: 25%; background-color: #ecfdf5; border-color: #a7f3d0;">
+                <div class="kpi-label" style="color: #065f46;">Laba Kotor (Gross Profit)</div>
+                <div class="kpi-value text-emerald">Rp {{ number_format($totalGrossProfit, 0, ',', '.') }}</div>
+            </td>
+            <td class="kpi-card" style="width: 25%;">
                 <div class="kpi-label">Transaksi Lunas</div>
                 <div class="kpi-value text-emerald">{{ $paidOrdersCount }} Pesanan</div>
-            </td>
-            <td class="kpi-card" style="width: 25%;">
-                <div class="kpi-label">Tunai (Cash)</div>
-                <div class="kpi-value text-amber">Rp {{ number_format($cashTotal, 0, ',', '.') }} <span style="font-size: 8px; font-weight: normal;">({{ $cashCount }})</span></div>
-            </td>
-            <td class="kpi-card" style="width: 25%;">
-                <div class="kpi-label">QRIS Gateway</div>
-                <div class="kpi-value text-purple">Rp {{ number_format($qrisTotal, 0, ',', '.') }} <span style="font-size: 8px; font-weight: normal;">({{ $qrisCount }})</span></div>
             </td>
         </tr>
         <tr>
@@ -294,7 +296,13 @@
                     <td class="font-bold">{{ $order->customer_name }}</td>
                     <td>{{ $order->user ? $order->user->name : '-' }}</td>
                     <td class="text-center">
-                        <span class="badge {{ $order->payment_method === 'QRIS' ? 'badge-qris' : 'badge-cash' }}">
+                        @php
+                            $badgeClass = 'badge-cash';
+                            if ($order->payment_method === 'QRIS') $badgeClass = 'badge-qris';
+                            elseif ($order->payment_method === 'DEBIT') $badgeClass = 'badge-debit';
+                            elseif ($order->payment_method === 'TRANSFER') $badgeClass = 'badge-transfer';
+                        @endphp
+                        <span class="badge {{ $badgeClass }}">
                             {{ $order->payment_method }}
                         </span>
                     </td>
@@ -323,6 +331,15 @@
                     </td>
                     <td class="text-right text-blue" style="padding: 7px 8px; font-size: 11px;">
                         Rp {{ number_format($totalNetRevenue, 0, ',', '.') }}
+                    </td>
+                    <td></td>
+                </tr>
+                <tr style="background-color: #ecfdf5; font-weight: bold;">
+                    <td colspan="6" class="text-right" style="padding: 6px 8px; font-size: 10px; color: #065f46;">
+                        ESTIMASI LABA KOTOR (NET REVENUE - HPP):
+                    </td>
+                    <td class="text-right text-emerald" style="padding: 6px 8px; font-size: 11px;">
+                        Rp {{ number_format($totalGrossProfit, 0, ',', '.') }}
                     </td>
                     <td></td>
                 </tr>

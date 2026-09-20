@@ -69,8 +69,11 @@ class Coupon extends Model
             $applicableSubtotal = 0;
             $categoryName = $this->category ? $this->category->name : 'Kategori Khusus';
 
+            $productIds = array_filter(array_column($items, 'id'));
+            $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
+
             foreach ($items as $item) {
-                $product = Product::find($item['id'] ?? null);
+                $product = $products->get($item['id'] ?? null);
                 if ($product && $product->category_id == $this->category_id) {
                     $applicableSubtotal += ($item['price'] * $item['qty']);
                 }

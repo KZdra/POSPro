@@ -17,6 +17,7 @@ class Product extends Model
         'price',
         'cost_price',
         'stock',
+        'min_stock',
         'manage_stock',
         'image',
         'is_active',
@@ -26,6 +27,7 @@ class Product extends Model
         'price' => 'decimal:2',
         'cost_price' => 'decimal:2',
         'stock' => 'integer',
+        'min_stock' => 'integer',
         'manage_stock' => 'boolean',
         'is_active' => 'boolean',
     ];

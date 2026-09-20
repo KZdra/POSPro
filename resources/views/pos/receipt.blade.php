@@ -83,6 +83,13 @@
                     </div>
                 @endif
 
+                @if($order->points_discount > 0)
+                    <div class="flex justify-between text-amber-600 font-semibold">
+                        <span>Diskon Poin ({{ $order->points_redeemed }} pts)</span>
+                        <span>-Rp {{ number_format($order->points_discount, 0, ',', '.') }}</span>
+                    </div>
+                @endif
+
                 @if($order->service > 0)
                     <div class="flex justify-between text-slate-600">
                         <span>Biaya Layanan ({{ floatval($order->service_percent) }}%)</span>
@@ -110,16 +117,35 @@
                 </div>
             </div>
 
-            <!-- Payment Details (Cash / QRIS) -->
+            <!-- Payment Details (Cash / QRIS / Split / EDC / Transfer) -->
             <div class="border-t border-dashed border-slate-300 pt-2.5 my-2 space-y-1 text-[11px]">
                 <div class="flex justify-between">
                     <span class="text-slate-500">Metode Bayar</span>
-                    <span class="font-extrabold uppercase {{ $order->payment_method === 'QRIS' ? 'text-blue-600' : 'text-slate-900' }}">
-                        {{ $order->payment_method }}
+                    <span class="font-extrabold uppercase {{ $order->payment_method === 'QRIS' ? 'text-blue-600' : ($order->payment_method === 'SPLIT' ? 'text-purple-600' : 'text-slate-900') }}">
+                        {{ $order->payment_method === 'SPLIT' ? 'SPLIT PAYMENT' : $order->payment_method }}
                     </span>
                 </div>
 
-                @if($order->payment_method === 'CASH')
+                @if($order->payment_method === 'SPLIT' || $order->is_split_payment)
+                    @if(!empty($order->payment_details))
+                        @foreach($order->payment_details as $split)
+                            <div class="flex justify-between text-[10px] pl-2 text-slate-600 font-semibold">
+                                <span>&bull; {{ $split['method'] ?? '-' }}</span>
+                                <span>Rp {{ number_format($split['amount'] ?? 0, 0, ',', '.') }}</span>
+                            </div>
+                        @endforeach
+                    @endif
+                    @if($order->cash_received > 0)
+                        <div class="flex justify-between text-[10px] pl-2 text-slate-500 pt-1 border-t border-slate-100">
+                            <span>Tunai Diterima</span>
+                            <span>Rp {{ number_format($order->cash_received, 0, ',', '.') }}</span>
+                        </div>
+                        <div class="flex justify-between text-[10px] pl-2 font-bold text-slate-800">
+                            <span>Kembalian</span>
+                            <span>Rp {{ number_format($order->cash_change, 0, ',', '.') }}</span>
+                        </div>
+                    @endif
+                @elseif($order->payment_method === 'CASH')
                     <div class="flex justify-between">
                         <span class="text-slate-500">Tunai Diterima</span>
                         <span>Rp {{ number_format($order->cash_received, 0, ',', '.') }}</span>
@@ -128,12 +154,24 @@
                         <span>Kembalian</span>
                         <span>Rp {{ number_format($order->cash_change, 0, ',', '.') }}</span>
                     </div>
-                @else
+                @elseif($order->payment_method === 'QRIS')
                     <div class="flex justify-between">
                         <span class="text-slate-500">Status QRIS</span>
                         <span class="font-extrabold {{ $order->status === 'PAID' ? 'text-emerald-600' : 'text-amber-600' }}">
                             {{ $order->status === 'PAID' ? 'LUNAS (PAID)' : 'MENUNGGU' }}
                         </span>
+                    </div>
+                @else
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Status</span>
+                        <span class="font-extrabold text-emerald-600">LUNAS ({{ $order->payment_method }})</span>
+                    </div>
+                @endif
+
+                @if($order->points_earned > 0)
+                    <div class="flex justify-between text-emerald-600 pt-1 border-t border-slate-100 font-semibold">
+                        <span>Poin Member Didapat</span>
+                        <span class="font-bold">+{{ $order->points_earned }} pts</span>
                     </div>
                 @endif
             </div>
@@ -145,14 +183,73 @@
             </div>
         </div>
 
+        @php
+            $storeName = \App\Models\Setting::get('store_name', 'POSPRO STORE');
+            $storeAddress = \App\Models\Setting::get('store_address');
+            $storePhone = \App\Models\Setting::get('store_phone');
+
+            $waLines = [];
+            $waLines[] = "*STRUK DIGITAL - " . strtoupper($storeName) . "*";
+            if ($storeAddress) $waLines[] = $storeAddress;
+            if ($storePhone) $waLines[] = "Telp: " . $storePhone;
+            $waLines[] = "--------------------------------";
+            $waLines[] = "No. Order : #" . $order->order_id;
+            $waLines[] = "Waktu     : " . $order->created_at->format('d/m/Y H:i');
+            $waLines[] = "Pelanggan : " . $order->customer_name;
+            $waLines[] = "Kasir     : " . ($order->user ? $order->user->name : 'Kasir');
+            if ($order->order_type) {
+                $waLines[] = "Tipe      : " . str_replace('_', ' ', $order->order_type);
+            }
+            $waLines[] = "--------------------------------";
+            foreach($order->items as $item) {
+                $waLines[] = $item->qty . "x " . $item->product_name . " (Rp " . number_format($item->subtotal, 0, ',', '.') . ")";
+                if (!empty($item->notes)) {
+                    $waLines[] = "   Catatan: " . $item->notes;
+                }
+            }
+            $waLines[] = "--------------------------------";
+            $waLines[] = "Subtotal  : Rp " . number_format($order->base_total, 0, ',', '.');
+            if ($order->discount > 0) {
+                $waLines[] = "Diskon    : -Rp " . number_format($order->discount, 0, ',', '.');
+            }
+            if ($order->points_discount > 0) {
+                $waLines[] = "Diskon Poin: -Rp " . number_format($order->points_discount, 0, ',', '.');
+            }
+            if ($order->service > 0) {
+                $waLines[] = "Layanan   : +Rp " . number_format($order->service, 0, ',', '.');
+            }
+            if ($order->tax > 0) {
+                $waLines[] = "Pajak PPN : +Rp " . number_format($order->tax, 0, ',', '.');
+            }
+            $waLines[] = "*TOTAL    : Rp " . number_format($order->grand_total, 0, ',', '.') . "*";
+            $waLines[] = "Metode    : " . $order->payment_method;
+            if ($order->points_earned > 0) {
+                $waLines[] = "Poin Didapat: +" . $order->points_earned . " pts";
+            }
+            $waLines[] = "--------------------------------";
+            $waLines[] = \App\Models\Setting::get('receipt_footer', 'Terima Kasih Atas Kunjungan Anda!');
+
+            $fullWaText = implode("\n", $waLines);
+            $initialPhone = ($order->customer && $order->customer->phone) ? $order->customer->phone : '';
+        @endphp
+
         <!-- Print & Navigation Actions (Hidden during print) -->
         <div class="flex flex-wrap items-center justify-center gap-3 mt-6 no-print">
             <button 
                 onclick="window.print()" 
-                class="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-lg transition active:scale-95 flex items-center space-x-2"
+                class="px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-lg transition active:scale-95 flex items-center space-x-2"
             >
                 <i class="fa-solid fa-print"></i>
                 <span>Cetak Struk Kasir</span>
+            </button>
+
+            <!-- WhatsApp Share Button (Feature 5) -->
+            <button 
+                onclick="shareWhatsAppReceipt()" 
+                class="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-600/30 transition active:scale-95 flex items-center space-x-2"
+            >
+                <i class="fa-brands fa-whatsapp text-sm"></i>
+                <span>Kirim WhatsApp</span>
             </button>
 
             @if(\App\Models\Setting::get('enable_kitchen_receipt', '1') == '1')
@@ -173,6 +270,30 @@
                 <span>Transaksi Baru</span>
             </a>
         </div>
+
+        <script>
+            function shareWhatsAppReceipt() {
+                let defaultPhone = '{{ $initialPhone }}';
+                let waText = @json($fullWaText);
+                let phone = defaultPhone;
+
+                if (!phone) {
+                    phone = prompt('Masukkan nomor WhatsApp pelanggan (contoh: 08123456789):', '');
+                }
+
+                if (phone) {
+                    // Normalize phone to international format 62xxx
+                    let cleanPhone = phone.replace(/[^0-9]/g, '');
+                    if (cleanPhone.startsWith('0')) {
+                        cleanPhone = '62' + cleanPhone.substring(1);
+                    } else if (!cleanPhone.startsWith('62')) {
+                        cleanPhone = '62' + cleanPhone;
+                    }
+                    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(waText)}`;
+                    window.open(url, '_blank');
+                }
+            }
+        </script>
     </div>
 
     <!-- Thermal Print CSS (58mm / 80mm Paper Optimizations) -->

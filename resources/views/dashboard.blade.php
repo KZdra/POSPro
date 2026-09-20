@@ -24,7 +24,7 @@
     <div class="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         
         <!-- KPI METRICS GRID -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             
             <!-- Penjualan Hari Ini -->
             <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
@@ -34,11 +34,27 @@
                         Rp {{ number_format($todaySales, 0, ',', '.') }}
                     </div>
                     <span class="text-[11px] text-emerald-600 font-bold flex items-center mt-1">
-                        <i class="fa-solid fa-arrow-trend-up mr-1"></i> {{ $todayOrdersCount }} Transaksi Lunas
+                        <i class="fa-solid fa-arrow-trend-up mr-1"></i> {{ $todayOrdersCount }} Order Lunas
                     </span>
                 </div>
                 <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl">
                     <i class="fa-solid fa-rupiah-sign"></i>
+                </div>
+            </div>
+
+            <!-- Laba Kotor Hari Ini (Gross Profit) -->
+            <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div>
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Laba Kotor (Hari Ini)</span>
+                    <div class="text-2xl font-extrabold text-emerald-600 mt-1">
+                        Rp {{ number_format($todayGrossProfit, 0, ',', '.') }}
+                    </div>
+                    <span class="text-[11px] text-slate-500 font-bold flex items-center mt-1">
+                        Margin: <strong class="text-emerald-700 ml-1">{{ $todayProfitMargin }}%</strong>
+                    </span>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-chart-line"></i>
                 </div>
             </div>
 
@@ -50,10 +66,10 @@
                         {{ $todayOrdersCount }} <span class="text-sm font-semibold text-slate-400">Order</span>
                     </div>
                     <span class="text-[11px] text-slate-400 font-medium mt-1 block">
-                        Cash & QRIS Gateway
+                        Multi Payment Method
                     </span>
                 </div>
-                <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl">
+                <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl">
                     <i class="fa-solid fa-receipt"></i>
                 </div>
             </div>
@@ -110,8 +126,8 @@
                                 <i class="fa-solid fa-money-bill"></i>
                             </div>
                             <div>
-                                <div class="text-xs font-extrabold text-slate-800">Tunai (Cash)</div>
-                                <div class="text-[11px] text-slate-400">Kas Masuk</div>
+                                <div class="font-extrabold text-xs text-slate-800">Tunai (Cash)</div>
+                                <div class="text-[11px] text-slate-400">Pembayaran Kasir</div>
                             </div>
                         </div>
                         <div class="font-extrabold text-sm text-slate-900">
@@ -122,11 +138,11 @@
                     <!-- QRIS -->
                     <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                         <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg">
+                            <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-lg">
                                 <i class="fa-solid fa-qrcode"></i>
                             </div>
                             <div>
-                                <div class="text-xs font-extrabold text-slate-800">QRIS Gateway</div>
+                                <div class="font-extrabold text-xs text-slate-800">QRIS Dinamis</div>
                                 <div class="text-[11px] text-slate-400">Mutasi Otomatis</div>
                             </div>
                         </div>
@@ -142,7 +158,7 @@
                 <div class="flex items-center justify-between">
                     <h3 class="font-extrabold text-base text-slate-900 flex items-center space-x-2">
                         <i class="fa-solid fa-triangle-exclamation text-amber-500"></i>
-                        <span>Peringatan Stok Menipis (&le; 5)</span>
+                        <span>Peringatan Stok Menipis (&le; Batas Minimum)</span>
                     </h3>
                     <a href="{{ route('products.index') }}" class="text-xs font-bold text-blue-600 hover:text-blue-700">
                         Kelola Stok &rarr;

@@ -22,6 +22,11 @@ class SettingController extends Controller
             'service_charge_on_takeaway' => Setting::get('service_charge_on_takeaway', '0'),
             'tax_on_takeaway' => Setting::get('tax_on_takeaway', '1'),
             'enable_kitchen_receipt' => Setting::get('enable_kitchen_receipt', '1'),
+            // POS Feature Toggles
+            'enable_shifts' => Setting::get('enable_shifts', '1'),
+            'enable_petty_cash' => Setting::get('enable_petty_cash', '1'),
+            'enable_points' => Setting::get('enable_points', '1'),
+            'enable_split_payment' => Setting::get('enable_split_payment', '1'),
             'payment_gateway_url' => Setting::get('payment_gateway_url', env('PAYMENT_GATEWAY_URL', 'http://localhost:3000/api/v1/qris/generate')),
             'payment_gateway_api_key' => Setting::get('payment_gateway_api_key', env('PAYMENT_GATEWAY_API_KEY', 'secret_key_hp_123')),
             'backend_api_key' => Setting::get('backend_api_key', env('BACKEND_API_KEY', 'secret_backend_123')),
@@ -51,6 +56,12 @@ class SettingController extends Controller
         Setting::set('store_phone', $request->store_phone);
         Setting::set('receipt_footer', $request->receipt_footer);
 
+        // POS Feature Toggles
+        Setting::set('enable_shifts', $request->boolean('enable_shifts') ? '1' : '0');
+        Setting::set('enable_petty_cash', $request->boolean('enable_petty_cash') ? '1' : '0');
+        Setting::set('enable_points', $request->boolean('enable_points') ? '1' : '0');
+        Setting::set('enable_split_payment', $request->boolean('enable_split_payment') ? '1' : '0');
+
         // Tax & Service configuration
         Setting::set('enable_tax', $request->boolean('enable_tax') ? '1' : '0');
         Setting::set('tax_rate', $request->filled('tax_rate') ? $request->tax_rate : '11');
@@ -71,6 +82,6 @@ class SettingController extends Controller
         Setting::set('backend_api_key', $request->filled('backend_api_key') ? trim($request->backend_api_key) : '');
         Setting::set('qris_expires_minutes', $request->filled('qris_expires_minutes') ? $request->qris_expires_minutes : '15');
 
-        return redirect()->route('admin.settings')->with('success', 'Pengaturan toko, pajak, tipe pesanan, struk dapur, dan payment gateway QRIS berhasil diperbarui!');
+        return redirect()->route('admin.settings')->with('success', 'Pengaturan sistem & fitur POS berhasil diperbarui!');
     }
 }

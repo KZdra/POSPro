@@ -12,7 +12,7 @@ class ProductController extends Controller
 {
     public function index()
     {
-        $products = Product::with('category')->latest()->get();
+        $products = Product::with('category')->latest()->paginate(25)->withQueryString();
         return view('products.index', compact('products'));
     }
 
@@ -32,8 +32,9 @@ class ProductController extends Controller
             'price' => 'required|numeric|min:0',
             'cost_price' => 'nullable|numeric|min:0',
             'stock' => 'nullable|integer|min:0',
+            'min_stock' => 'nullable|integer|min:0',
             'manage_stock' => 'nullable',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp,gif,svg,avif|max:51200',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:3072',
             'image_url' => 'nullable|string',
             'is_active' => 'nullable',
         ]);
@@ -45,6 +46,7 @@ class ProductController extends Controller
         $validated['cost_price'] = floatval($request->cost_price ?? 0);
         $validated['manage_stock'] = $request->boolean('manage_stock');
         $validated['stock'] = $validated['manage_stock'] ? intval($request->stock ?? 0) : 0;
+        $validated['min_stock'] = $validated['manage_stock'] ? intval($request->min_stock ?? 5) : 5;
         $validated['is_active'] = $request->boolean('is_active');
 
         // Image handling: file upload takes priority over image_url
@@ -78,8 +80,9 @@ class ProductController extends Controller
             'price' => 'required|numeric|min:0',
             'cost_price' => 'nullable|numeric|min:0',
             'stock' => 'nullable|integer|min:0',
+            'min_stock' => 'nullable|integer|min:0',
             'manage_stock' => 'nullable',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp,gif,svg,avif|max:51200',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:3072',
             'image_url' => 'nullable|string',
             'is_active' => 'nullable',
         ]);
@@ -87,6 +90,7 @@ class ProductController extends Controller
         $validated['cost_price'] = floatval($request->cost_price ?? 0);
         $validated['manage_stock'] = $request->boolean('manage_stock');
         $validated['stock'] = $validated['manage_stock'] ? intval($request->stock ?? 0) : 0;
+        $validated['min_stock'] = $validated['manage_stock'] ? intval($request->min_stock ?? 5) : 5;
         $validated['is_active'] = $request->boolean('is_active');
 
         if ($request->hasFile('image')) {

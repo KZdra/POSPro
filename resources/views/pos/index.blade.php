@@ -23,13 +23,50 @@
                     </button>
                 </div>
 
-                <!-- Clock, Held Orders & Fullscreen -->
+                <!-- Clock, Shift Status, Held Orders & Fullscreen -->
                 <div class="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
                     <!-- Live Clock -->
                     <div class="flex items-center space-x-1.5 px-2.5 py-1.5 bg-slate-50 rounded-xl border border-slate-200 text-[11px] font-bold text-slate-600">
                         <i class="fa-regular fa-clock text-blue-500"></i>
                         <span x-text="liveTime"></span>
                     </div>
+
+                    <!-- Cashier Shift Status Button (If Feature Enabled) -->
+                    @if($featureSettings['enable_shifts'])
+                        @if($activeShift)
+                            <button 
+                                @click="openCloseShiftModal = true" 
+                                class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-[11px] font-bold transition flex items-center space-x-1.5 shadow-sm cursor-pointer"
+                                title="Shift Kasir Aktif - Klik untuk Tutup Shift"
+                            >
+                                <i class="fa-solid fa-circle text-[7px] text-emerald-500 animate-pulse"></i>
+                                <span>Shift Kasir</span>
+                                <span class="text-[10px] text-emerald-600 font-extrabold hidden md:inline">#{{ $activeShift->id }}</span>
+                            </button>
+
+                            @if($featureSettings['enable_petty_cash'])
+                                <!-- Petty Cash In/Out Button -->
+                                <button 
+                                    @click="openMovementModal = true" 
+                                    class="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-xl text-[11px] font-bold transition flex items-center space-x-1.5 shadow-sm cursor-pointer"
+                                    title="Catat Kas Masuk / Kas Keluar Operasional (Petty Cash)"
+                                >
+                                    <i class="fa-solid fa-money-bill-transfer text-indigo-600"></i>
+                                    <span class="hidden md:inline">Kas Masuk/Keluar</span>
+                                    <span class="md:hidden">Petty Kas</span>
+                                </button>
+                            @endif
+                        @else
+                            <button 
+                                @click="openShiftModal = true" 
+                                class="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-[11px] font-bold transition flex items-center space-x-1.5 shadow-sm cursor-pointer"
+                                title="Shift Kasir Belum Dibuka"
+                            >
+                                <i class="fa-solid fa-lock text-amber-600"></i>
+                                <span>Buka Shift</span>
+                            </button>
+                        @endif
+                    @endif
 
                     <!-- Hold Order Recall Button -->
                     <button 
@@ -190,14 +227,36 @@
             </div>
 
             <!-- Customer Indicator Badge in Cart -->
-            <div class="px-4 py-2.5 bg-blue-50/50 border-b border-slate-100 flex items-center justify-between">
+            <div class="px-4 py-2 bg-blue-50/50 border-b border-slate-100 flex items-center justify-between">
                 <div class="flex items-center space-x-2">
                     <i class="fa-solid fa-user-tag text-blue-500 text-xs"></i>
-                    <span class="text-xs font-bold text-slate-700" x-text="customerName ? customerName : 'Pelanggan: Belum Diisi'"></span>
+                    <div class="text-xs">
+                        <div class="font-bold text-slate-800 flex items-center space-x-1.5">
+                            <span x-text="customerName ? customerName : 'Pelanggan: Belum Diisi'"></span>
+                            <template x-if="selectedCustomerId">
+                                <span class="px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-extrabold rounded-md inline-flex items-center space-x-1">
+                                    <i class="fa-solid fa-coins text-amber-600 text-[8px]"></i>
+                                    <span x-text="selectedCustomerPoints + ' pts'"></span>
+                                </span>
+                            </template>
+                        </div>
+                        <template x-if="selectedCustomerId && grandTotal >= 10000">
+                            <div class="text-[9px] text-emerald-600 font-bold">
+                                +<span x-text="Math.floor(grandTotal / 10000)"></span> pts didapat dari order ini
+                            </div>
+                        </template>
+                    </div>
                 </div>
-                <button @click="openCustomerModal = true" class="text-[11px] font-extrabold text-blue-600 hover:underline">
-                    <span x-text="customerName ? 'Ganti' : '+ Masukkan Nama'"></span>
-                </button>
+                <div class="flex items-center space-x-1.5">
+                    <button @click="openCustomerModal = true" class="text-[11px] font-extrabold text-blue-600 hover:underline">
+                        <span x-text="customerName ? 'Ganti' : '+ Member / Meja'"></span>
+                    </button>
+                    <template x-if="customerName">
+                        <button @click="resetCustomer()" class="text-slate-400 hover:text-red-500 ml-0.5" title="Hapus Pelanggan">
+                            <i class="fa-solid fa-xmark text-xs"></i>
+                        </button>
+                    </template>
+                </div>
             </div>
 
             <!-- Dine In / Take Away Order Type Selector (Only if enableOrderTypes is true) -->
@@ -353,6 +412,51 @@
                         </template>
                     </div>
 
+                    @if($featureSettings['enable_points'])
+                    <!-- Tukar Poin Member Row (Feature 2) -->
+                    <template x-if="selectedCustomerId && selectedCustomerPoints > 0">
+                        <div class="pt-2 border-t border-slate-200/60 space-y-1.5">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-1.5">
+                                    <i class="fa-solid fa-coins text-amber-500 text-xs"></i>
+                                    <span class="font-bold text-slate-700">Tukar Poin Member</span>
+                                    <span class="text-[10px] text-slate-400 font-semibold">(Ada <span x-text="selectedCustomerPoints"></span>)</span>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" x-model="redeemPointsEnabled" @change="onToggleRedeemPoints()" class="sr-only peer">
+                                    <div class="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-amber-500"></div>
+                                </label>
+                            </div>
+                            <template x-if="redeemPointsEnabled">
+                                <div class="p-2 bg-amber-50/80 border border-amber-200 rounded-xl space-y-1.5">
+                                    <div class="flex items-center justify-between text-xs">
+                                        <span class="text-amber-900 font-medium text-[11px]">Tukar (1 pt = Rp 1.000):</span>
+                                        <div class="flex items-center space-x-1">
+                                            <input 
+                                                type="number" 
+                                                x-model.number="pointsToRedeem" 
+                                                @input="sanitizePointsToRedeem()"
+                                                min="1" 
+                                                :max="maxRedeemablePoints"
+                                                class="w-16 px-1.5 py-0.5 bg-white border border-amber-300 rounded-lg text-xs font-bold text-right text-amber-900 focus:ring-1 focus:ring-amber-500 focus:outline-none"
+                                            />
+                                            <button 
+                                                type="button" 
+                                                @click="pointsToRedeem = maxRedeemablePoints"
+                                                class="px-1.5 py-0.5 bg-amber-200 hover:bg-amber-300 text-amber-900 font-extrabold rounded-md text-[10px]"
+                                            >Max</button>
+                                        </div>
+                                    </div>
+                                    <div class="flex justify-between items-center text-xs font-bold text-amber-900 pt-1 border-t border-amber-200/60">
+                                        <span>Potongan Poin:</span>
+                                        <span class="text-emerald-700" x-text="'-Rp ' + formatNumber(pointsDiscountAmount)"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                    @endif
+
                     <!-- Service Charge (If Enabled) -->
                     <template x-if="enableService">
                         <div class="flex justify-between items-center text-slate-500 font-semibold pt-1 border-t border-slate-200/60">
@@ -438,7 +542,7 @@
         </div>
 
 
-        <!-- MODAL 1: WAJIB NAMA PELANGGAN (Mandatory Customer Name Modal) -->
+        <!-- MODAL 1: WAJIB NAMA PELANGGAN / MEMBER CRM (Customer & Loyalty Member Modal) -->
         <div 
             x-show="openCustomerModal" 
             x-transition:enter="transition ease-out duration-200"
@@ -450,63 +554,174 @@
             class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
             style="display: none;"
         >
-            <div @click.away="openCustomerModal = false" class="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 p-6 space-y-4">
-                <div class="text-center space-y-1">
-                    <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl mx-auto mb-2">
-                        <i class="fa-solid fa-user-pen"></i>
+            <div @click.away="openCustomerModal = false" class="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-100 overflow-hidden space-y-4">
+                <div class="p-6 pb-2 text-center space-y-1">
+                    <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl mx-auto mb-2 shadow-inner">
+                        <i class="fa-solid fa-id-card"></i>
                     </div>
-                    <h3 class="font-extrabold text-lg text-slate-900">Nama Pelanggan / Meja</h3>
-                    <p class="text-xs text-slate-500 font-medium">Mohon masukkan identitas pelanggan untuk pencetakan struk</p>
+                    <h3 class="font-extrabold text-lg text-slate-900">Identitas Pelanggan & Member CRM</h3>
+                    <p class="text-xs text-slate-500 font-medium">Pilih member terdaftar untuk kumpulkan poin atau masukkan identitas meja</p>
                 </div>
 
-                <!-- Input Name -->
-                <div class="space-y-3">
-                    <div>
-                        <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Nama Pelanggan / No. Meja (Wajib) *</label>
-                        <input 
-                            type="text" 
-                            x-model="customerName" 
-                            id="customerNameInput"
-                            @keydown.enter="confirmCustomerName()"
-                            placeholder="Contoh: Meja 05 / Kak Sarah / Take Away" 
-                            class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-sm font-bold text-slate-900 focus:bg-white focus:border-blue-600 focus:ring-0 transition"
+                <!-- Tabs: Member CRM vs Guest / Meja -->
+                <div class="px-6">
+                    <div class="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-2xl">
+                        <button 
+                            type="button" 
+                            @click="customerTab = 'member'"
+                            :class="customerTab === 'member' ? 'bg-white text-blue-700 shadow-sm font-extrabold' : 'text-slate-600 font-bold hover:text-slate-900'"
+                            class="py-2 px-3 rounded-xl text-xs transition flex items-center justify-center space-x-1.5"
                         >
+                            <i class="fa-solid fa-crown text-amber-500 text-[11px]"></i>
+                            <span>Member CRM (Poin)</span>
+                        </button>
+                        <button 
+                            type="button" 
+                            @click="customerTab = 'guest'"
+                            :class="customerTab === 'guest' ? 'bg-white text-blue-700 shadow-sm font-extrabold' : 'text-slate-600 font-bold hover:text-slate-900'"
+                            class="py-2 px-3 rounded-xl text-xs transition flex items-center justify-center space-x-1.5"
+                        >
+                            <i class="fa-solid fa-user text-slate-400 text-[11px]"></i>
+                            <span>Tamu / No. Meja</span>
+                        </button>
                     </div>
+                </div>
 
-                    <!-- Quick Suggestions (Meja & Tipe Order) -->
-                    <div>
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Preset Cepat:</span>
-                        <div class="flex flex-wrap gap-1.5">
-                            <button @click="setCustomerPreset('Dine In')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">
-                                Dine In
+                <div class="px-6 pb-6 space-y-4">
+                    <!-- TAB 1: MEMBER CRM -->
+                    <div x-show="customerTab === 'member'" class="space-y-3">
+                        <!-- Search Bar -->
+                        <div class="relative">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            <input 
+                                type="text" 
+                                x-model="customerSearch" 
+                                placeholder="Cari nama member atau nomor HP/WA..." 
+                                class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
+                            >
+                        </div>
+
+                        <!-- Member List Scrollable -->
+                        <div class="max-h-48 overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-100">
+                            <template x-for="m in filteredCustomerList" :key="m.id">
+                                <div class="p-2.5 bg-slate-50 hover:bg-blue-50/70 border border-slate-200/70 rounded-xl flex items-center justify-between transition cursor-pointer" @click="selectMember(m)">
+                                    <div class="flex items-center space-x-2.5">
+                                        <div class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs">
+                                            <span x-text="m.name.charAt(0).toUpperCase()"></span>
+                                        </div>
+                                        <div>
+                                            <div class="text-xs font-extrabold text-slate-900" x-text="m.name"></div>
+                                            <div class="text-[10px] text-slate-500 font-mono" x-text="m.phone || 'Tanpa No. HP'"></div>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md text-[10px] font-extrabold">
+                                            <i class="fa-solid fa-coins text-amber-500 text-[8px] mr-0.5"></i>
+                                            <span x-text="m.points + ' pts'"></span>
+                                        </span>
+                                        <button type="button" class="px-2.5 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-extrabold hover:bg-blue-700 transition">
+                                            Pilih
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template x-if="filteredCustomerList.length === 0">
+                                <div class="py-6 text-center text-slate-400">
+                                    <p class="text-xs font-semibold">Tidak menemukan member dengan kata kunci tersebut.</p>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Quick Register Toggle -->
+                        <div class="pt-2 border-t border-slate-100">
+                            <button 
+                                type="button" 
+                                @click="showNewMemberForm = !showNewMemberForm" 
+                                class="text-xs font-extrabold text-blue-600 hover:text-blue-700 flex items-center space-x-1.5"
+                            >
+                                <i class="fa-solid" :class="showNewMemberForm ? 'fa-minus' : 'fa-plus'"></i>
+                                <span x-text="showNewMemberForm ? 'Tutup Pendaftaran Cepat' : '+ Daftarkan Member Baru Cepat'"></span>
                             </button>
-                            <button @click="setCustomerPreset('Take Away')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">
-                                Take Away
-                            </button>
-                            <button @click="setCustomerPreset('Meja 01')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">
-                                Meja 01
-                            </button>
-                            <button @click="setCustomerPreset('Meja 02')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">
-                                Meja 02
-                            </button>
-                            <button @click="setCustomerPreset('Meja 03')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">
-                                Meja 03
-                            </button>
-                            <button @click="setCustomerPreset('Online/Ojol')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">
-                                Ojol
-                            </button>
+
+                            <!-- Quick Form -->
+                            <div x-show="showNewMemberForm" class="mt-3 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
+                                <div class="text-[11px] font-bold text-slate-700">Form Pendaftaran Member Cepat:</div>
+                                <input 
+                                    type="text" 
+                                    x-model="newMemberName" 
+                                    placeholder="Nama Lengkap Member *" 
+                                    class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold"
+                                >
+                                <input 
+                                    type="text" 
+                                    x-model="newMemberPhone" 
+                                    placeholder="Nomor Telepon / WhatsApp (Opsional)" 
+                                    class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold font-mono"
+                                >
+                                <div class="flex justify-end pt-1">
+                                    <button 
+                                        type="button" 
+                                        @click="quickRegisterMember()" 
+                                        class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold shadow-sm transition flex items-center space-x-1.5"
+                                    >
+                                        <i class="fa-solid fa-user-check"></i>
+                                        <span>Daftarkan & Pilih</span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Modal Action -->
-                <div class="flex items-center space-x-2 pt-3 border-t border-slate-100">
-                    <button @click="openCustomerModal = false" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">
-                        Batal
-                    </button>
-                    <button @click="confirmCustomerName()" class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-blue-600/30 transition active:scale-95">
-                        Lanjut Bayar &rarr;
-                    </button>
+                    <!-- TAB 2: GUEST / MEJA -->
+                    <div x-show="customerTab === 'guest'" class="space-y-3">
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Nama Tamu / No. Meja (Wajib) *</label>
+                            <input 
+                                type="text" 
+                                x-model="customerName" 
+                                id="customerNameInput"
+                                @keydown.enter="confirmCustomerName()"
+                                placeholder="Contoh: Meja 05 / Kak Sarah / Take Away" 
+                                class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl text-sm font-bold text-slate-900 focus:bg-white focus:border-blue-600 focus:ring-0 transition"
+                            >
+                        </div>
+
+                        <!-- Quick Suggestions (Meja & Tipe Order) -->
+                        <div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Preset Cepat:</span>
+                            <div class="flex flex-wrap gap-1.5">
+                                <button @click="setCustomerPreset('Dine In')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">
+                                    Dine In
+                                </button>
+                                <button @click="setCustomerPreset('Take Away')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">
+                                    Take Away
+                                </button>
+                                <button @click="setCustomerPreset('Meja 01')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">
+                                    Meja 01
+                                </button>
+                                <button @click="setCustomerPreset('Meja 02')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">
+                                    Meja 02
+                                </button>
+                                <button @click="setCustomerPreset('Meja 03')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">
+                                    Meja 03
+                                </button>
+                                <button @click="setCustomerPreset('Online/Ojol')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">
+                                    Ojol
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal Actions -->
+                    <div class="flex items-center space-x-2 pt-3 border-t border-slate-100">
+                        <button @click="openCustomerModal = false" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">
+                            Batal
+                        </button>
+                        <button @click="confirmCustomerName()" class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-blue-600/30 transition active:scale-95">
+                            Lanjut Bayar &rarr;
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -553,34 +768,78 @@
                 <!-- Modal Body -->
                 <div class="p-5 md:p-6 space-y-4 md:space-y-6 overflow-y-auto">
                     <!-- Payment Method Switcher Tabs -->
-                    <div class="grid grid-cols-2 gap-2.5">
+                    <div class="grid grid-cols-2 {{ $featureSettings['enable_split_payment'] ? 'md:grid-cols-5' : 'md:grid-cols-4' }} gap-2">
                         <button 
-                            @click="paymentMethod = 'CASH'" 
+                            @click="selectPaymentMethod('CASH')" 
                             :class="paymentMethod === 'CASH' ? 'bg-blue-50 border-blue-600 text-blue-700 ring-2 ring-blue-500' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'"
-                            class="p-3 md:p-4 rounded-2xl border-2 text-left font-bold transition flex items-center space-x-2.5 md:space-x-3"
+                            class="p-2.5 md:p-3 rounded-2xl border-2 text-left font-bold transition flex items-center space-x-2.5 cursor-pointer"
                         >
-                            <div class="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center text-lg md:text-xl shadow-md shadow-blue-500/20">
+                            <div class="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center text-base md:text-lg shadow-md shadow-blue-500/20 shrink-0">
                                 <i class="fa-solid fa-money-bill-wave"></i>
                             </div>
                             <div>
-                                <div class="text-xs md:text-base font-extrabold">Tunai (Cash)</div>
-                                <div class="text-[10px] md:text-xs font-normal text-slate-400">Bayar tunai langsung</div>
+                                <div class="text-xs md:text-sm font-extrabold">Tunai</div>
+                                <div class="text-[9px] md:text-[10px] font-normal text-slate-400">Uang Tunai</div>
                             </div>
                         </button>
 
                         <button 
-                            @click="paymentMethod = 'QRIS'" 
+                            @click="selectPaymentMethod('QRIS')" 
                             :class="paymentMethod === 'QRIS' ? 'bg-blue-50 border-blue-600 text-blue-700 ring-2 ring-blue-500' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'"
-                            class="p-3 md:p-4 rounded-2xl border-2 text-left font-bold transition flex items-center space-x-2.5 md:space-x-3"
+                            class="p-2.5 md:p-3 rounded-2xl border-2 text-left font-bold transition flex items-center space-x-2.5 cursor-pointer"
                         >
-                            <div class="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg md:text-xl shadow-md shadow-emerald-500/20">
+                            <div class="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-base md:text-lg shadow-md shadow-emerald-500/20 shrink-0">
                                 <i class="fa-solid fa-qrcode"></i>
                             </div>
                             <div>
-                                <div class="text-xs md:text-base font-extrabold">QRIS Otomatis</div>
-                                <div class="text-[10px] md:text-xs font-normal text-slate-400">GoPay, OVO, Dana, dll</div>
+                                <div class="text-xs md:text-sm font-extrabold">QRIS</div>
+                                <div class="text-[9px] md:text-[10px] font-normal text-slate-400">Semua E-Wallet</div>
                             </div>
                         </button>
+
+                        <button 
+                            @click="selectPaymentMethod('DEBIT')" 
+                            :class="paymentMethod === 'DEBIT' ? 'bg-blue-50 border-blue-600 text-blue-700 ring-2 ring-blue-500' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'"
+                            class="p-2.5 md:p-3 rounded-2xl border-2 text-left font-bold transition flex items-center space-x-2.5 cursor-pointer"
+                        >
+                            <div class="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-base md:text-lg shadow-md shadow-indigo-500/20 shrink-0">
+                                <i class="fa-solid fa-credit-card"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs md:text-sm font-extrabold">EDC / Debit</div>
+                                <div class="text-[9px] md:text-[10px] font-normal text-slate-400">Gesek Kartu</div>
+                            </div>
+                        </button>
+
+                        <button 
+                            @click="selectPaymentMethod('TRANSFER')" 
+                            :class="paymentMethod === 'TRANSFER' ? 'bg-blue-50 border-blue-600 text-blue-700 ring-2 ring-blue-500' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'"
+                            class="p-2.5 md:p-3 rounded-2xl border-2 text-left font-bold transition flex items-center space-x-2.5 cursor-pointer"
+                        >
+                            <div class="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center text-base md:text-lg shadow-md shadow-teal-500/20 shrink-0">
+                                <i class="fa-solid fa-building-columns"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs md:text-sm font-extrabold">Transfer</div>
+                                <div class="text-[9px] md:text-[10px] font-normal text-slate-400">Bank Langsung</div>
+                            </div>
+                        </button>
+
+                        @if($featureSettings['enable_split_payment'])
+                        <button 
+                            @click="selectPaymentMethod('SPLIT')" 
+                            :class="paymentMethod === 'SPLIT' ? 'bg-purple-50 border-purple-600 text-purple-700 ring-2 ring-purple-500' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'"
+                            class="p-2.5 md:p-3 rounded-2xl border-2 text-left font-bold transition flex items-center space-x-2.5 cursor-pointer"
+                        >
+                            <div class="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center text-base md:text-lg shadow-md shadow-purple-500/20 shrink-0">
+                                <i class="fa-solid fa-code-branch"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs md:text-sm font-extrabold">Split Bayar</div>
+                                <div class="text-[9px] md:text-[10px] font-normal text-slate-400">Pisah Metode</div>
+                            </div>
+                        </button>
+                        @endif
                     </div>
 
                     <!-- CASH PAYMENT SECTION: Touch Numpad & Quick Cash -->
@@ -661,6 +920,121 @@
                         </p>
                     </div>
 
+                    <!-- DEBIT / EDC SECTION INFO -->
+                    <div x-show="paymentMethod === 'DEBIT'" class="p-5 bg-indigo-50/70 rounded-2xl border border-indigo-200 text-center space-y-2">
+                        <div class="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center text-2xl mx-auto shadow-inner">
+                            <i class="fa-solid fa-credit-card"></i>
+                        </div>
+                        <h4 class="font-extrabold text-slate-800 text-base">Pembayaran EDC / Kartu Debit & Kredit</h4>
+                        <p class="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">
+                            Gesek / tap kartu debit atau kredit pelanggan pada mesin EDC kasir. Setelah transaksi berhasil disetujui di mesin EDC, tekan tombol <strong>Selesaikan Transaksi</strong>.
+                        </p>
+                    </div>
+
+                    <!-- TRANSFER SECTION INFO -->
+                    <div x-show="paymentMethod === 'TRANSFER'" class="p-5 bg-teal-50/70 rounded-2xl border border-teal-200 text-center space-y-2">
+                        <div class="w-12 h-12 rounded-2xl bg-teal-100 text-teal-700 flex items-center justify-center text-2xl mx-auto shadow-inner">
+                            <i class="fa-solid fa-building-columns"></i>
+                        </div>
+                        <h4 class="font-extrabold text-slate-800 text-base">Pembayaran Transfer Rekening Bank</h4>
+                        <p class="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">
+                            Minta pelanggan melakukan transfer ke rekening resmi toko. Pastikan kasir telah memverifikasi bukti transfer atau mutasi rekening sebelum menyelesaikan transaksi.
+                        </p>
+                    </div>
+
+                    <!-- SPLIT PAYMENT SECTION (Feature 3) -->
+                    <div x-show="paymentMethod === 'SPLIT'" class="space-y-4">
+                        <div class="p-4 bg-purple-50/70 rounded-2xl border border-purple-200 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center text-sm shadow-sm">
+                                        <i class="fa-solid fa-code-branch"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-extrabold text-purple-950 text-sm">Split Payment (Pisah Pembayaran)</h4>
+                                        <p class="text-[11px] text-purple-700">Bagi tagihan ke 2 metode berbeda (misal: Tunai + EDC)</p>
+                                    </div>
+                                </div>
+                                <button type="button" @click="autoBalanceSplit()" class="px-2.5 py-1 bg-purple-200 hover:bg-purple-300 text-purple-900 rounded-lg text-xs font-extrabold transition">
+                                    Bagi 50:50
+                                </button>
+                            </div>
+
+                            <!-- Split Line 1 -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 p-3 bg-white rounded-xl border border-purple-100 shadow-sm">
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Metode Bagian 1</label>
+                                    <select x-model="splitMethod1" @change="onSplitMethodChange()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold focus:border-purple-600 focus:bg-white focus:ring-0 transition">
+                                        <option value="CASH">Tunai (Cash)</option>
+                                        <option value="DEBIT">Kartu EDC / Debit</option>
+                                        <option value="TRANSFER">Transfer Bank</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Nominal Bagian 1 (Rp)</label>
+                                    <input 
+                                        type="number" 
+                                        x-model.number="splitAmount1" 
+                                        @input="onSplitAmount1Change()"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-extrabold text-slate-900 text-right focus:border-purple-600 focus:bg-white focus:ring-0 transition"
+                                    >
+                                </div>
+                            </div>
+
+                            <!-- Split Line 2 -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 p-3 bg-white rounded-xl border border-purple-100 shadow-sm">
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Metode Bagian 2</label>
+                                    <select x-model="splitMethod2" @change="onSplitMethodChange()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold focus:border-purple-600 focus:bg-white focus:ring-0 transition">
+                                        <option value="DEBIT">Kartu EDC / Debit</option>
+                                        <option value="TRANSFER">Transfer Bank</option>
+                                        <option value="CASH">Tunai (Cash)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Nominal Bagian 2 (Rp)</label>
+                                    <input 
+                                        type="number" 
+                                        x-model.number="splitAmount2" 
+                                        @input="onSplitAmount2Change()"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-extrabold text-slate-900 text-right focus:border-purple-600 focus:bg-white focus:ring-0 transition"
+                                    >
+                                </div>
+                            </div>
+
+                            <!-- Split Balance Indicator -->
+                            <div class="p-3 rounded-xl border flex items-center justify-between text-xs"
+                                :class="splitDifference === 0 ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-rose-50 border-rose-300 text-rose-900'">
+                                <div class="flex items-center space-x-2 font-bold">
+                                    <i class="fa-solid" :class="splitDifference === 0 ? 'fa-check-circle text-emerald-600' : 'fa-triangle-exclamation text-rose-600'"></i>
+                                    <span x-text="splitDifference === 0 ? 'Jumlah Pembayaran Pas!' : (splitDifference > 0 ? 'Kurang Rp ' + formatNumber(splitDifference) : 'Lebih Rp ' + formatNumber(Math.abs(splitDifference)))"></span>
+                                </div>
+                                <div class="font-mono font-extrabold">
+                                    Total Split: Rp <span x-text="formatNumber(splitTotal)"></span> / <span x-text="formatNumber(grandTotal)"></span>
+                                </div>
+                            </div>
+
+                            <!-- Cash Portion Received Input (If either split method is CASH) -->
+                            <template x-if="splitCashPortion > 0">
+                                <div class="p-3 bg-white rounded-xl border border-purple-200 space-y-2">
+                                    <div class="flex items-center justify-between text-xs">
+                                        <label class="font-extrabold text-slate-800">Uang Tunai Diterima Kasir (Rp):</label>
+                                        <span class="text-[11px] text-purple-700 font-bold">Porsi Tunai: Rp <span x-text="formatNumber(splitCashPortion)"></span></span>
+                                    </div>
+                                    <input 
+                                        type="number" 
+                                        x-model.number="cashReceived" 
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-base font-extrabold text-slate-900 focus:border-purple-600 focus:bg-white focus:ring-0 transition"
+                                    >
+                                    <div class="flex justify-between items-center text-xs font-bold pt-1 border-t border-slate-100">
+                                        <span class="text-slate-600">Kembalian Tunai:</span>
+                                        <span class="font-mono text-emerald-600 font-extrabold" x-text="cashChange >= 0 ? 'Rp ' + formatNumber(cashChange) : 'Kurang Rp ' + formatNumber(Math.abs(cashChange))"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
                     <!-- Hidden Form for submission -->
                     <form id="checkoutForm" action="{{ route('pos.checkout') }}" method="POST">
                         @csrf
@@ -668,9 +1042,15 @@
                         <input type="hidden" name="payment_method" :value="paymentMethod">
                         <input type="hidden" name="order_type" :value="enableOrderTypes ? orderType : ''">
                         <input type="hidden" name="customer_name" :value="customerName">
+                        <input type="hidden" name="customer_id" :value="selectedCustomerId">
                         <input type="hidden" name="discount" :value="discountAmount">
                         <input type="hidden" name="discount_percent" :value="discountPercent">
                         <input type="hidden" name="coupon_code" :value="appliedCoupon ? appliedCoupon.coupon_code : ''">
+                        <input type="hidden" name="points_to_redeem" :value="redeemPointsEnabled ? pointsToRedeem : 0">
+                        <input type="hidden" name="split_method_1" :value="splitMethod1">
+                        <input type="hidden" name="split_amount_1" :value="splitAmount1">
+                        <input type="hidden" name="split_method_2" :value="splitMethod2">
+                        <input type="hidden" name="split_amount_2" :value="splitAmount2">
                         <input type="hidden" name="service" :value="serviceAmount">
                         <input type="hidden" name="service_percent" :value="activeServiceRate">
                         <input type="hidden" name="tax" :value="taxAmount">
@@ -686,11 +1066,11 @@
                     </button>
                     <button 
                         @click="submitCheckout()" 
-                        :disabled="paymentMethod === 'CASH' && cashChange < 0"
+                        :disabled="(paymentMethod === 'CASH' && cashChange < 0) || (paymentMethod === 'SPLIT' && (splitDifference !== 0 || (splitCashPortion > 0 && cashChange < 0)))"
                         class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs md:text-sm rounded-xl shadow-lg shadow-blue-600/30 transition active:scale-95 disabled:opacity-50 disabled:pointer-events-none flex items-center space-x-2"
                     >
                         <i class="fa-solid fa-circle-check"></i>
-                        <span x-text="paymentMethod === 'CASH' ? 'Proses & Cetak Struk' : 'Lanjutkan ke QRIS'"></span>
+                        <span x-text="paymentMethod === 'CASH' ? 'Proses & Cetak Struk' : (paymentMethod === 'QRIS' ? 'Lanjutkan ke QRIS' : (paymentMethod === 'DEBIT' ? 'Selesaikan Bayar EDC' : (paymentMethod === 'TRANSFER' ? 'Selesaikan Bayar Transfer' : 'Selesaikan Split Payment')))"></span>
                     </button>
                 </div>
             </div>
@@ -1063,6 +1443,282 @@
             </div>
         </div>
 
+        <!-- MODAL 5: BUKA SHIFT KASIR -->
+        <div 
+            x-show="openShiftModal" 
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0"
+            x-transition:enter-end="opacity-100"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"
+            class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+            style="display: none;"
+        >
+            <div @click.away="openShiftModal = false" class="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 p-6 space-y-4">
+                <div class="text-center space-y-1">
+                    <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl mx-auto mb-2 shadow-inner">
+                        <i class="fa-solid fa-lock-open"></i>
+                    </div>
+                    <h3 class="font-extrabold text-lg text-slate-900">Buka Shift Kasir Baru</h3>
+                    <p class="text-xs text-slate-500 font-medium">Masukkan uang modal awal (Cash In) di laci kasir sebelum memulai transaksi</p>
+                </div>
+
+                <form action="{{ route('pos.shift.open') }}" method="POST" class="space-y-4">
+                    @csrf
+                    <div>
+                        <label class="block text-xs font-extrabold text-slate-700 uppercase mb-1">Modal Awal Laci (Rp)</label>
+                        <input 
+                            type="number" 
+                            name="opening_cash" 
+                            id="openingCashInput"
+                            value="100000" 
+                            required 
+                            class="w-full text-xl font-extrabold text-slate-900 bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-2.5 focus:border-blue-600 focus:bg-white focus:ring-0 transition"
+                        >
+                    </div>
+
+                    <!-- Quick amount presets -->
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <button type="button" onclick="document.getElementById('openingCashInput').value = 50000" class="py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-700 transition">50.000</button>
+                        <button type="button" onclick="document.getElementById('openingCashInput').value = 100000" class="py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-700 transition">100.000</button>
+                        <button type="button" onclick="document.getElementById('openingCashInput').value = 200000" class="py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-700 transition">200.000</button>
+                        <button type="button" onclick="document.getElementById('openingCashInput').value = 300000" class="py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-700 transition">300.000</button>
+                        <button type="button" onclick="document.getElementById('openingCashInput').value = 500000" class="py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-700 transition">500.000</button>
+                        <button type="button" onclick="document.getElementById('openingCashInput').value = 1000000" class="py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-700 transition">1.000.000</button>
+                    </div>
+
+                    <div class="flex items-center space-x-2 pt-2 border-t border-slate-100">
+                        <button type="button" @click="openShiftModal = false" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">
+                            Batal
+                        </button>
+                        <button type="submit" class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-blue-600/30 transition active:scale-95">
+                            Buka Shift Sekarang
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL 7: KAS MASUK & KAS KELUAR OPERASIONAL (PETTY CASH - Feature 1) -->
+        @if($activeShift)
+            <div 
+                x-show="openMovementModal" 
+                x-transition:enter="transition ease-out duration-200"
+                x-transition:enter-start="opacity-0"
+                x-transition:enter-end="opacity-100"
+                x-transition:leave="transition ease-in duration-150"
+                x-transition:leave-start="opacity-100"
+                x-transition:leave-end="opacity-0"
+                class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+                style="display: none;"
+            >
+                <div @click.away="openMovementModal = false" class="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 p-6 space-y-4">
+                    <div class="text-center space-y-1">
+                        <div class="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl mx-auto mb-2 shadow-inner">
+                            <i class="fa-solid fa-money-bill-transfer"></i>
+                        </div>
+                        <h3 class="font-extrabold text-lg text-slate-900">Kas Masuk / Kas Keluar</h3>
+                        <p class="text-xs text-slate-500 font-medium">Catat pengeluaran kecil kasir atau penambahan modal kas</p>
+                    </div>
+
+                    <form action="{{ route('pos.shift.movement') }}" method="POST" class="space-y-4">
+                        @csrf
+                        <!-- Movement Type Selection -->
+                        <div class="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-2xl">
+                            <button 
+                                type="button" 
+                                @click="movementType = 'CASH_OUT'" 
+                                :class="movementType === 'CASH_OUT' ? 'bg-rose-600 text-white shadow-md font-extrabold' : 'text-slate-600 font-bold hover:text-slate-900'"
+                                class="py-2.5 px-3 rounded-xl text-xs transition flex items-center justify-center space-x-1.5"
+                            >
+                                <i class="fa-solid fa-arrow-up-from-bracket text-xs"></i>
+                                <span>Kas Keluar (Biaya)</span>
+                            </button>
+                            <button 
+                                type="button" 
+                                @click="movementType = 'CASH_IN'" 
+                                :class="movementType === 'CASH_IN' ? 'bg-emerald-600 text-white shadow-md font-extrabold' : 'text-slate-600 font-bold hover:text-slate-900'"
+                                class="py-2.5 px-3 rounded-xl text-xs transition flex items-center justify-center space-x-1.5"
+                            >
+                                <i class="fa-solid fa-arrow-down-to-bracket text-xs"></i>
+                                <span>Kas Masuk (Modal)</span>
+                            </button>
+                        </div>
+                        <input type="hidden" name="type" :value="movementType">
+
+                        <div>
+                            <label class="block text-xs font-extrabold text-slate-700 uppercase mb-1">Nominal (Rp) <span class="text-rose-500">*</span></label>
+                            <input 
+                                type="number" 
+                                name="amount" 
+                                id="movementAmountInput"
+                                required 
+                                min="100"
+                                placeholder="Contoh: 25000"
+                                class="w-full text-xl font-extrabold text-slate-900 bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-2.5 focus:border-indigo-600 focus:bg-white focus:ring-0 transition"
+                            >
+                        </div>
+
+                        <!-- Quick Nominal Presets -->
+                        <div class="grid grid-cols-4 gap-1.5">
+                            <button type="button" onclick="document.getElementById('movementAmountInput').value = 10000" class="py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-700 transition">10.000</button>
+                            <button type="button" onclick="document.getElementById('movementAmountInput').value = 25000" class="py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-700 transition">25.000</button>
+                            <button type="button" onclick="document.getElementById('movementAmountInput').value = 50000" class="py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-700 transition">50.000</button>
+                            <button type="button" onclick="document.getElementById('movementAmountInput').value = 100000" class="py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-700 transition">100.000</button>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-extrabold text-slate-700 uppercase mb-1">Keperluan / Keterangan <span class="text-rose-500">*</span></label>
+                            <input 
+                                type="text" 
+                                name="reason" 
+                                id="movementReasonInput"
+                                required 
+                                placeholder="Contoh: Beli es batu, beli gas 3kg, tambah kembalian..."
+                                class="w-full text-xs font-semibold text-slate-900 bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2.5 focus:border-indigo-600 focus:bg-white focus:ring-0 transition"
+                            >
+                            <!-- Quick Reason Presets -->
+                            <div class="flex flex-wrap gap-1 mt-1.5">
+                                <button type="button" onclick="document.getElementById('movementReasonInput').value = 'Beli Es Batu Kristal'" class="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 rounded text-[10px] text-slate-600 font-semibold">+ Es Batu</button>
+                                <button type="button" onclick="document.getElementById('movementReasonInput').value = 'Beli Tabung Gas Elpiji'" class="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 rounded text-[10px] text-slate-600 font-semibold">+ Gas Elpiji</button>
+                                <button type="button" onclick="document.getElementById('movementReasonInput').value = 'Beli Plastik Kresek / Kantong'" class="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 rounded text-[10px] text-slate-600 font-semibold">+ Kantong/Plastik</button>
+                                <button type="button" onclick="document.getElementById('movementReasonInput').value = 'Tambah Uang Pecahan Kembalian'" class="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 rounded text-[10px] text-slate-600 font-semibold">+ Pecahan Kembalian</button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center space-x-2 pt-2 border-t border-slate-100">
+                            <button type="button" @click="openMovementModal = false" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">
+                                Batal
+                            </button>
+                            <button type="submit" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-indigo-600/30 transition active:scale-95">
+                                Simpan Kas
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
+
+        <!-- MODAL 6: TUTUP SHIFT & REKONSILIASI KAS -->
+        @if($activeShift)
+            <div 
+                x-show="openCloseShiftModal" 
+                x-transition:enter="transition ease-out duration-200"
+                x-transition:enter-start="opacity-0"
+                x-transition:enter-end="opacity-100"
+                x-transition:leave="transition ease-in duration-150"
+                x-transition:leave-start="opacity-100"
+                x-transition:leave-end="opacity-0"
+                class="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+                style="display: none;"
+            >
+                <div @click.away="openCloseShiftModal = false" class="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-100 p-6 space-y-4">
+                    <div class="text-center space-y-1">
+                        <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center text-xl mx-auto mb-2 shadow-inner">
+                            <i class="fa-solid fa-lock"></i>
+                        </div>
+                        <h3 class="font-extrabold text-lg text-slate-900">Tutup Shift & Rekonsiliasi Kas</h3>
+                        <p class="text-xs text-slate-500 font-medium">Hitung uang fisik di laci kasir dan bandingkan dengan sistem</p>
+                    </div>
+
+                    <!-- Summary Info Box -->
+                    <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 text-xs">
+                        <div class="flex justify-between text-slate-600">
+                            <span>Kasir:</span>
+                            <strong class="text-slate-800">{{ $activeShift->user ? $activeShift->user->name : Auth::user()->name }}</strong>
+                        </div>
+                        <div class="flex justify-between text-slate-600">
+                            <span>Waktu Buka:</span>
+                            <span class="font-mono font-bold text-slate-800">{{ $activeShift->opened_at->format('d M Y, H:i') }}</span>
+                        </div>
+                        <div class="flex justify-between text-slate-600 border-t border-slate-200 pt-2">
+                            <span>Modal Awal (Cash In):</span>
+                            <strong class="font-mono">Rp {{ number_format($activeShift->opening_cash, 0, ',', '.') }}</strong>
+                        </div>
+                        <div class="flex justify-between text-slate-600">
+                            <span>Penjualan Tunai:</span>
+                            <strong class="font-mono text-emerald-600">+Rp {{ number_format($activeShift->cash_sales, 0, ',', '.') }}</strong>
+                        </div>
+                        @php
+                            $shiftCashIn = $activeShift->totalCashIn();
+                            $shiftCashOut = $activeShift->totalCashOut();
+                            $expectedCash = $activeShift->opening_cash + $activeShift->cash_sales + $shiftCashIn - $shiftCashOut;
+                        @endphp
+                        @if($shiftCashIn > 0)
+                            <div class="flex justify-between text-slate-600">
+                                <span>Kas Masuk Operasional:</span>
+                                <strong class="font-mono text-emerald-600">+Rp {{ number_format($shiftCashIn, 0, ',', '.') }}</strong>
+                            </div>
+                        @endif
+                        @if($shiftCashOut > 0)
+                            <div class="flex justify-between text-slate-600">
+                                <span>Kas Keluar Operasional (Petty Cash):</span>
+                                <strong class="font-mono text-rose-600">-Rp {{ number_format($shiftCashOut, 0, ',', '.') }}</strong>
+                            </div>
+                        @endif
+                        <div class="flex justify-between text-slate-600">
+                            <span>Penjualan Non-Tunai (QRIS/EDC/Transfer):</span>
+                            <strong class="font-mono text-purple-600">Rp {{ number_format($activeShift->non_cash_sales, 0, ',', '.') }}</strong>
+                        </div>
+                        <div class="flex justify-between text-sm font-extrabold text-blue-900 bg-blue-50/80 p-2.5 rounded-xl border border-blue-200">
+                            <span>Total Kas Seharusnya di Laci:</span>
+                            <span class="font-mono text-blue-700">Rp {{ number_format($expectedCash, 0, ',', '.') }}</span>
+                        </div>
+                    </div>
+
+                    <form action="{{ route('pos.shift.close') }}" method="POST" class="space-y-4">
+                        @csrf
+                        <div>
+                            <label class="block text-xs font-extrabold text-slate-700 uppercase mb-1">
+                                Uang Fisik Kasir di Laci (Rp) <span class="text-rose-500">*</span>
+                            </label>
+                            <input 
+                                type="number" 
+                                name="closing_cash_actual" 
+                                x-model.number="actualClosingCash"
+                                required 
+                                placeholder="Hitung dan masukkan uang fisik..." 
+                                class="w-full text-xl font-extrabold text-slate-900 bg-slate-50 border-2 border-slate-200 rounded-2xl px-4 py-2.5 focus:border-blue-600 focus:bg-white focus:ring-0 transition"
+                            >
+                        </div>
+
+                        <!-- Live Difference Calculator -->
+                        <div class="p-3.5 rounded-2xl border-2 transition flex items-center justify-between"
+                            :class="(actualClosingCash - {{ $expectedCash }}) === 0 ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : ((actualClosingCash - {{ $expectedCash }}) < 0 ? 'bg-rose-50 border-rose-300 text-rose-900' : 'bg-blue-50 border-blue-300 text-blue-900')"
+                        >
+                            <div>
+                                <span class="text-[10px] font-bold uppercase tracking-wider">Selisih Rekonsiliasi (Discrepancy)</span>
+                                <div class="text-lg font-extrabold mt-0.5">
+                                    <template x-if="actualClosingCash === 0 && !actualClosingCash">
+                                        <span>Masukkan uang fisik...</span>
+                                    </template>
+                                    <template x-if="actualClosingCash > 0 || actualClosingCash === 0">
+                                        <span x-text="(actualClosingCash - {{ $expectedCash }}) === 0 ? 'Pas / Sesuai (Rp 0)' : ((actualClosingCash - {{ $expectedCash }}) < 0 ? 'Kurang Rp ' + formatNumber(Math.abs(actualClosingCash - {{ $expectedCash }})) : 'Lebih Rp ' + formatNumber(actualClosingCash - {{ $expectedCash }}))"></span>
+                                    </template>
+                                </div>
+                            </div>
+                            <i class="fa-solid text-2xl" :class="(actualClosingCash - {{ $expectedCash }}) === 0 ? 'fa-circle-check text-emerald-500' : ((actualClosingCash - {{ $expectedCash }}) < 0 ? 'fa-circle-exclamation text-rose-500' : 'fa-circle-info text-blue-500')"></i>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Catatan Tutup Shift / Alasan Selisih (Opsional):</label>
+                            <textarea name="closing_notes" rows="2" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs" placeholder="Contoh: Selisih Rp 500 karena tidak ada uang koin kembalian..."></textarea>
+                        </div>
+
+                        <div class="flex items-center space-x-2 pt-2 border-t border-slate-100">
+                            <button type="button" @click="openCloseShiftModal = false" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">
+                                Batal
+                            </button>
+                            <button type="submit" class="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-rose-600/30 transition active:scale-95">
+                                Tutup Shift & Simpan
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
+
     </div>
 
     <!-- Alpine.js POS Logic -->
@@ -1101,6 +1757,25 @@
                 showPaymentModal: false,
                 openCustomerModal: false,
                 openHoldModal: false,
+                openShiftModal: false,
+                openCloseShiftModal: false,
+                openMovementModal: false,
+                movementType: 'CASH_OUT',
+                actualClosingCash: 0,
+                selectedCustomerId: null,
+                selectedCustomerPoints: 0,
+                redeemPointsEnabled: false,
+                pointsToRedeem: 0,
+                splitMethod1: 'CASH',
+                splitAmount1: 0,
+                splitMethod2: 'DEBIT',
+                splitAmount2: 0,
+                customerTab: 'member',
+                customerSearch: '',
+                newMemberName: '',
+                newMemberPhone: '',
+                showNewMemberForm: false,
+                allCustomers: @json($customers ?? []),
                 mobileCartOpen: false,
                 heldOrders: [],
                 liveTime: '',
@@ -1123,6 +1798,9 @@
                             this.openCustomerModal = false;
                             this.openHoldModal = false;
                             this.openNoteModal = false;
+                            this.openShiftModal = false;
+                            this.openCloseShiftModal = false;
+                            this.openMovementModal = false;
                             this.closeDiscountModal();
                         }
                     });
@@ -1142,6 +1820,15 @@
                     });
                 },
 
+                get filteredCustomerList() {
+                    const q = (this.customerSearch || '').toLowerCase().trim();
+                    if (!q) return this.allCustomers.slice(0, 15);
+                    return this.allCustomers.filter(c => 
+                        (c.name && c.name.toLowerCase().includes(q)) || 
+                        (c.phone && c.phone.includes(q))
+                    ).slice(0, 15);
+                },
+
                 get subtotal() {
                     return this.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
                 },
@@ -1153,8 +1840,23 @@
                     return Math.round(this.subtotal * ((this.discountPercent || 0) / 100));
                 },
 
-                get subtotalAfterDiscount() {
+                get subtotalAfterCoupon() {
                     return Math.max(0, this.subtotal - this.discountAmount);
+                },
+
+                get maxRedeemablePoints() {
+                    if (!this.selectedCustomerId || !this.selectedCustomerPoints) return 0;
+                    return Math.min(this.selectedCustomerPoints, Math.ceil(this.subtotalAfterCoupon / 1000));
+                },
+
+                get pointsDiscountAmount() {
+                    if (!this.redeemPointsEnabled) return 0;
+                    const pts = parseInt(this.pointsToRedeem) || 0;
+                    return Math.min(this.subtotalAfterCoupon, pts * 1000);
+                },
+
+                get subtotalAfterDiscount() {
+                    return Math.max(0, this.subtotalAfterCoupon - this.pointsDiscountAmount);
                 },
 
                 get isTakeAway() {
@@ -1189,7 +1891,26 @@
                     return this.cart.reduce((sum, item) => sum + item.qty, 0);
                 },
 
+                get splitTotal() {
+                    return (parseFloat(this.splitAmount1) || 0) + (parseFloat(this.splitAmount2) || 0);
+                },
+
+                get splitDifference() {
+                    return Math.round(this.grandTotal - this.splitTotal);
+                },
+
+                get splitCashPortion() {
+                    let total = 0;
+                    if (this.splitMethod1 === 'CASH') total += (parseFloat(this.splitAmount1) || 0);
+                    if (this.splitMethod2 === 'CASH') total += (parseFloat(this.splitAmount2) || 0);
+                    return total;
+                },
+
                 get cashChange() {
+                    if (this.paymentMethod === 'SPLIT') {
+                        if (this.splitCashPortion <= 0) return 0;
+                        return (this.cashReceived || 0) - this.splitCashPortion;
+                    }
                     return (this.cashReceived || 0) - this.grandTotal;
                 },
 
@@ -1436,6 +2157,10 @@
                     this.appliedCoupon = null;
                     this.couponCodeInput = '';
                     this.customerName = '';
+                    this.selectedCustomerId = null;
+                    this.selectedCustomerPoints = 0;
+                    this.redeemPointsEnabled = false;
+                    this.pointsToRedeem = 0;
                 },
 
                 handleBarcodeScan() {
@@ -1483,6 +2208,8 @@
                 },
 
                 setCustomerPreset(preset) {
+                    this.selectedCustomerId = null;
+                    this.selectedCustomerPoints = 0;
                     this.customerName = preset;
                     if (this.enableOrderTypes) {
                         if (preset === 'Take Away' || preset === 'Online/Ojol') {
@@ -1493,8 +2220,117 @@
                     }
                 },
 
+                selectMember(member) {
+                    this.selectedCustomerId = member.id;
+                    this.customerName = member.name;
+                    this.selectedCustomerPoints = member.points || 0;
+                    this.redeemPointsEnabled = false;
+                    this.pointsToRedeem = 0;
+                    this.openCustomerModal = false;
+                    Toast.fire({ icon: 'success', title: 'Member ' + member.name + ' (' + (member.points || 0) + ' pts) dipilih!' });
+                },
+
+                resetCustomer() {
+                    this.selectedCustomerId = null;
+                    this.customerName = '';
+                    this.selectedCustomerPoints = 0;
+                    this.redeemPointsEnabled = false;
+                    this.pointsToRedeem = 0;
+                },
+
+                onToggleRedeemPoints() {
+                    if (this.redeemPointsEnabled) {
+                        this.pointsToRedeem = this.maxRedeemablePoints;
+                    } else {
+                        this.pointsToRedeem = 0;
+                    }
+                },
+
+                sanitizePointsToRedeem() {
+                    if (this.pointsToRedeem < 0) this.pointsToRedeem = 0;
+                    if (this.pointsToRedeem > this.maxRedeemablePoints) this.pointsToRedeem = this.maxRedeemablePoints;
+                },
+
+                selectPaymentMethod(method) {
+                    this.paymentMethod = method;
+                    if (method === 'SPLIT') {
+                        this.autoBalanceSplit();
+                    } else if (method === 'CASH') {
+                        this.cashReceived = this.grandTotal;
+                    }
+                },
+
+                autoBalanceSplit() {
+                    const half = Math.floor(this.grandTotal / 2);
+                    this.splitAmount1 = half;
+                    this.splitAmount2 = this.grandTotal - half;
+                    if (this.splitCashPortion > 0) {
+                        this.cashReceived = this.splitCashPortion;
+                    }
+                },
+
+                onSplitAmount1Change() {
+                    const amt1 = parseFloat(this.splitAmount1) || 0;
+                    this.splitAmount2 = Math.max(0, this.grandTotal - amt1);
+                    if (this.splitCashPortion > 0) {
+                        this.cashReceived = this.splitCashPortion;
+                    }
+                },
+
+                onSplitAmount2Change() {
+                    const amt2 = parseFloat(this.splitAmount2) || 0;
+                    this.splitAmount1 = Math.max(0, this.grandTotal - amt2);
+                    if (this.splitCashPortion > 0) {
+                        this.cashReceived = this.splitCashPortion;
+                    }
+                },
+
+                onSplitMethodChange() {
+                    if (this.splitCashPortion > 0) {
+                        this.cashReceived = this.splitCashPortion;
+                    }
+                },
+
+                async quickRegisterMember() {
+                    const name = (this.newMemberName || '').trim();
+                    if (!name) {
+                        Toast.fire({ icon: 'warning', title: 'Nama member wajib diisi!' });
+                        return;
+                    }
+                    try {
+                        const res = await fetch('{{ route("pos.customers.quick-create") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                name: name,
+                                phone: this.newMemberPhone
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok && data.customer) {
+                            this.allCustomers.unshift(data.customer);
+                            this.selectMember(data.customer);
+                            this.newMemberName = '';
+                            this.newMemberPhone = '';
+                            this.showNewMemberForm = false;
+                        } else {
+                            Toast.fire({ icon: 'error', title: data.message || 'Gagal mendaftar member.' });
+                        }
+                    } catch(e) {
+                        Toast.fire({ icon: 'error', title: 'Terjadi kesalahan sistem.' });
+                    }
+                },
+
                 openPaymentModal() {
-                    this.cashReceived = this.grandTotal;
+                    if (this.paymentMethod === 'SPLIT') {
+                        this.autoBalanceSplit();
+                    } else {
+                        this.cashReceived = this.grandTotal;
+                    }
                     this.showPaymentModal = true;
                     this.mobileCartOpen = false;
                 },
@@ -1527,6 +2363,17 @@
                     if (this.paymentMethod === 'CASH' && this.cashChange < 0) {
                         Toast.fire({ icon: 'error', title: 'Nominal uang diterima kurang!' });
                         return;
+                    }
+
+                    if (this.paymentMethod === 'SPLIT') {
+                        if (this.splitDifference !== 0) {
+                            Toast.fire({ icon: 'error', title: 'Jumlah split payment harus pas dengan total tagihan!' });
+                            return;
+                        }
+                        if (this.splitCashPortion > 0 && this.cashChange < 0) {
+                            Toast.fire({ icon: 'error', title: 'Nominal uang tunai fisik diterima kurang dari porsi tunai!' });
+                            return;
+                        }
                     }
 
                     document.getElementById('checkoutForm').submit();

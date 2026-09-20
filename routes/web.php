@@ -8,6 +8,8 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\CouponController;
+use App\Http\Controllers\ShiftController;
+use App\Http\Controllers\CustomerController;
 use Illuminate\Support\Facades\Route;
 
 // Authenticated Routes (Kasir & Admin)
@@ -19,12 +21,24 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/pos/validate-coupon', [POSController::class, 'validateCoupon'])->name('pos.validate-coupon');
     Route::get('/status/{orderId}', [POSController::class, 'checkStatus'])->name('pos.status');
     Route::post('/pos/manual-settle/{orderId}', [POSController::class, 'manualSettle'])->name('pos.manual-settle');
+    Route::post('/pos/orders/{orderId}/cancel', [POSController::class, 'cancelPendingOrder'])->name('pos.orders.cancel');
     Route::get('/print-receipt/{orderId}', [POSController::class, 'printReceipt'])->name('pos.receipt');
     Route::get('/kitchen-receipt/{orderId}', [POSController::class, 'kitchenReceipt'])->name('pos.kitchen-receipt');
 
-    // Sales History & Void (Accessible by Kasir & Admin)
+    // Cashier Shift Management & Petty Cash
+    Route::get('/pos/shift/current', [ShiftController::class, 'current'])->name('pos.shift.current');
+    Route::post('/pos/shift/open', [ShiftController::class, 'open'])->name('pos.shift.open');
+    Route::post('/pos/shift/close/{id?}', [ShiftController::class, 'close'])->name('pos.shift.close');
+    Route::post('/pos/shift/movement', [ShiftController::class, 'addCashMovement'])->name('pos.shift.movement');
+
+    // Customer / Member Quick Lookup
+    Route::get('/pos/customers/search', [CustomerController::class, 'search'])->name('pos.customers.search');
+    Route::post('/pos/customers/quick-create', [CustomerController::class, 'store'])->name('pos.customers.quick-create');
+
+    // Sales History, Void & Export (Accessible by Kasir & Admin)
     Route::get('/admin/history', [AdminController::class, 'history'])->name('admin.history');
     Route::get('/admin/history/export-pdf', [AdminController::class, 'exportPdf'])->name('admin.history.pdf');
+    Route::get('/admin/history/export-csv', [AdminController::class, 'exportCsv'])->name('admin.history.csv');
     Route::post('/admin/orders/{orderId}/void', [AdminController::class, 'voidOrder'])->name('admin.orders.void');
 
     // Admin-Only Protected Routes
@@ -36,6 +50,8 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('products', ProductController::class);
         Route::resource('users', UserController::class);
         Route::resource('coupons', CouponController::class);
+        Route::resource('customers', CustomerController::class);
+        Route::get('/shifts', [ShiftController::class, 'index'])->name('admin.shifts.index');
 
         // Store Settings
         Route::get('/settings', [SettingController::class, 'index'])->name('admin.settings');

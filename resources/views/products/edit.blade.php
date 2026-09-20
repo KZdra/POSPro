@@ -112,15 +112,27 @@
                             </div>
 
                             <!-- Stock Input -->
-                            <div x-show="manageStock" x-transition class="pt-2 border-t border-slate-200/60">
-                                <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Jumlah Stok Fisik</label>
-                                <input 
-                                    type="number" 
-                                    name="stock" 
-                                    value="{{ old('stock', $product->stock) }}" 
-                                    min="0" 
-                                    class="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
-                                >
+                            <div x-show="manageStock" x-transition class="pt-2 border-t border-slate-200/60 grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Jumlah Stok Fisik</label>
+                                    <input 
+                                        type="number" 
+                                        name="stock" 
+                                        value="{{ old('stock', $product->stock) }}" 
+                                        min="0" 
+                                        class="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                                    >
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-600 uppercase mb-1">Batas Menipis (Alert)</label>
+                                    <input 
+                                        type="number" 
+                                        name="min_stock" 
+                                        value="{{ old('min_stock', $product->min_stock ?? 5) }}" 
+                                        min="0" 
+                                        class="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                                    >
+                                </div>
                             </div>
                         </div>
                     </div>

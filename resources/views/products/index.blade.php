@@ -128,18 +128,23 @@
                 </tbody>
             </table>
 
+            <!-- Laravel Pagination Links -->
+            @if($products->hasPages())
+                <div class="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+                    {{ $products->links() }}
+                </div>
+            @endif
+
         </div>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             $('#productsTable').DataTable({
-                pageLength: 15,
+                paging: false,
+                info: false,
                 language: {
-                    search: "Cari Produk / SKU:",
-                    lengthMenu: "Tampilkan _MENU_ data",
-                    info: "Menampilkan _START_ s/d _END_ dari _TOTAL_ produk",
-                    paginate: { next: "&rarr;", previous: "&larr;" },
+                    search: "Cari cepat di halaman ini:",
                     zeroRecords: "Tidak ada produk yang cocok"
                 }
             });

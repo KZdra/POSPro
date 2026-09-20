@@ -6,12 +6,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Category;
 use App\Models\OrderItem;
 use App\Models\Setting;
 use App\Models\Coupon;
+use App\Models\Customer;
+use App\Models\CashShift;
 
 class POSController extends Controller
 {
@@ -26,6 +29,20 @@ class POSController extends Controller
             })
             ->get();
         
+        $featureSettings = [
+            'enable_shifts' => Setting::get('enable_shifts', '1') == '1',
+            'enable_petty_cash' => Setting::get('enable_petty_cash', '1') == '1',
+            'enable_points' => Setting::get('enable_points', '1') == '1',
+            'enable_split_payment' => Setting::get('enable_split_payment', '1') == '1',
+        ];
+
+        $activeShift = null;
+        if ($featureSettings['enable_shifts']) {
+            $activeShift = CashShift::where('user_id', Auth::id())->where('status', 'OPEN')->first();
+        }
+
+        $customers = Customer::orderBy('name')->take(50)->get();
+
         $taxSettings = [
             'enable_tax' => Setting::get('enable_tax', '0') == '1',
             'tax_rate' => floatval(Setting::get('tax_rate', '11')),
@@ -37,7 +54,7 @@ class POSController extends Controller
             'enable_kitchen_receipt' => Setting::get('enable_kitchen_receipt', '1') == '1',
         ];
 
-        return view('pos.index', compact('categories', 'products', 'taxSettings', 'activeCoupons'));
+        return view('pos.index', compact('categories', 'products', 'taxSettings', 'featureSettings', 'activeCoupons', 'activeShift', 'customers'));
     }
 
     public function validateCoupon(Request $request)
@@ -75,9 +92,10 @@ class POSController extends Controller
     {
         $request->validate([
             'items' => 'required|string',
-            'payment_method' => 'required|in:CASH,QRIS',
+            'payment_method' => 'required|in:CASH,QRIS,TRANSFER,DEBIT',
             'order_type' => 'nullable|in:DINE_IN,TAKE_AWAY',
             'customer_name' => 'required|string|max:100',
+            'customer_id' => 'nullable|exists:customers,id',
             'cash_received' => 'nullable|numeric|min:0',
             'discount' => 'nullable|numeric|min:0',
             'discount_percent' => 'nullable|numeric|min:0|max:100',
@@ -91,138 +109,358 @@ class POSController extends Controller
             'customer_name.required' => 'Nama Pelanggan atau Nomor Meja wajib diisi!',
         ]);
 
-        $items = json_decode($request->items, true);
+        $rawItems = json_decode($request->items, true);
         
-        if (empty($items)) {
+        if (empty($rawItems) || !is_array($rawItems)) {
             return back()->with('error', 'Keranjang belanja masih kosong!');
         }
 
-        $enableOrderTypes = Setting::get('enable_order_types', '1') == '1';
-        $orderType = $enableOrderTypes ? ($request->order_type ?: 'DINE_IN') : null;
+        // 1. Fetch real products from DB to prevent client price tampering and validate stock
+        $productIds = array_filter(array_column($rawItems, 'id'));
+        $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
 
+        $reconstructedItems = [];
         $baseTotal = 0;
-        foreach ($items as $item) {
-            $baseTotal += ($item['price'] * $item['qty']);
+
+        foreach ($rawItems as $rawItem) {
+            $productId = $rawItem['id'] ?? null;
+            $qty = intval($rawItem['qty'] ?? 0);
+
+            if ($qty <= 0) {
+                return back()->with('error', 'Jumlah produk harus lebih dari 0.');
+            }
+
+            $product = $products->get($productId);
+            if (!$product || !$product->is_active) {
+                return back()->with('error', 'Produk "' . ($rawItem['name'] ?? 'Pilihan') . '" tidak ditemukan atau sedang tidak aktif.');
+            }
+
+            // Overselling protection: check available stock
+            if ($product->manage_stock && $product->stock < $qty) {
+                return back()->with('error', "Stok untuk produk \"{$product->name}\" tidak mencukupi! Tersedia: {$product->stock}, diminta: {$qty}.");
+            }
+
+            // Real server-side price calculation
+            $serverPrice = floatval($product->price);
+            $costPrice = floatval($product->cost_price ?? 0);
+            $itemSubtotal = $serverPrice * $qty;
+            $baseTotal += $itemSubtotal;
+
+            $reconstructedItems[] = [
+                'id' => $product->id,
+                'name' => $product->name,
+                'price' => $serverPrice,
+                'cost_price' => $costPrice,
+                'qty' => $qty,
+                'subtotal' => $itemSubtotal,
+                'notes' => !empty($rawItem['notes']) ? trim($rawItem['notes']) : null,
+                'product_model' => $product,
+            ];
         }
 
-        $discountPercent = floatval($request->discount_percent ?? 0);
-        $discountAmount = floatval($request->discount ?? ($baseTotal * ($discountPercent / 100)));
-        
-        // Handle Coupon if applied
+        // 2. Server-side discount & coupon calculation
+        $discountAmount = 0;
+        $discountPercent = 0;
         $couponCode = null;
+
         if ($request->filled('coupon_code')) {
-            $coupon = Coupon::where('code', strtoupper(trim($request->coupon_code)))->first();
-            if ($coupon && $coupon->is_active) {
-                $couponCode = $coupon->code;
-                $coupon->increment('used_count');
+            $coupon = Coupon::with('category')->where('code', strtoupper(trim($request->coupon_code)))->first();
+            if (!$coupon) {
+                return back()->with('error', 'Kode kupon promo tidak ditemukan.');
             }
+
+            $couponCalc = $coupon->calculateDiscount($reconstructedItems, $baseTotal);
+            if (!$couponCalc['valid']) {
+                return back()->with('error', 'Kupon promo tidak valid: ' . $couponCalc['message']);
+            }
+
+            $discountAmount = floatval($couponCalc['discount_amount']);
+            $discountPercent = floatval($couponCalc['discount_percent']);
+            $couponCode = $coupon->code;
+        } elseif ($request->filled('discount_percent') && floatval($request->discount_percent) > 0) {
+            $discountPercent = min(100, max(0, floatval($request->discount_percent)));
+            $discountAmount = round($baseTotal * ($discountPercent / 100), 2);
+        } elseif ($request->filled('discount') && floatval($request->discount) > 0) {
+            $discountAmount = min($baseTotal, max(0, floatval($request->discount)));
+            $discountPercent = ($baseTotal > 0) ? round(($discountAmount / $baseTotal) * 100, 2) : 0;
         }
 
         $subtotalAfterDiscount = max(0, $baseTotal - $discountAmount);
 
-        // Service charge calculation (exempt if Take Away & service_charge_on_takeaway is false)
-        $servicePercent = floatval($request->service_percent ?? 0);
-        if ($orderType === 'TAKE_AWAY' && Setting::get('service_charge_on_takeaway', '0') != '1') {
-            $servicePercent = 0;
-            $serviceAmount = 0;
-        } else {
-            $serviceAmount = floatval($request->service ?? ($subtotalAfterDiscount * ($servicePercent / 100)));
+        // 2b. Loyalty Points Redemption (1 point = Rp 1.000 discount)
+        $enablePoints = Setting::get('enable_points', '1') == '1';
+        $pointsRedeemed = 0;
+        $pointsDiscount = 0;
+        $customerId = $request->filled('customer_id') ? $request->customer_id : null;
+        $customer = ($enablePoints && $customerId) ? Customer::find($customerId) : null;
+
+        if ($enablePoints && $customer && $request->filled('points_to_redeem') && intval($request->points_to_redeem) > 0) {
+            $requestedPoints = intval($request->points_to_redeem);
+            $availablePoints = $customer->points;
+            $pointsRedeemed = min($availablePoints, $requestedPoints);
+            $maxDiscountPossible = $subtotalAfterDiscount;
+            $pointsDiscount = min($maxDiscountPossible, $pointsRedeemed * 1000);
+            $pointsRedeemed = (int) ceil($pointsDiscount / 1000);
+            $subtotalAfterDiscount = max(0, $subtotalAfterDiscount - $pointsDiscount);
         }
 
-        // Tax calculation (exempt if Take Away & tax_on_takeaway is false)
-        $taxPercent = floatval($request->tax_percent ?? 0);
-        if ($orderType === 'TAKE_AWAY' && Setting::get('tax_on_takeaway', '1') != '1') {
-            $taxPercent = 0;
-            $taxAmount = 0;
-        } else {
-            $taxAmount = floatval($request->tax ?? (($subtotalAfterDiscount + $serviceAmount) * ($taxPercent / 100)));
+        // 3. Server-side Service & Tax calculation
+        $enableOrderTypes = Setting::get('enable_order_types', '1') == '1';
+        $orderType = $enableOrderTypes ? ($request->order_type ?: 'DINE_IN') : null;
+
+        $enableService = Setting::get('enable_service', '0') == '1';
+        $serviceRate = $enableService ? floatval(Setting::get('service_rate', '5')) : 0;
+        if ($orderType === 'TAKE_AWAY' && Setting::get('service_charge_on_takeaway', '0') != '1') {
+            $serviceRate = 0;
         }
+        $serviceAmount = round($subtotalAfterDiscount * ($serviceRate / 100), 2);
+
+        $enableTax = Setting::get('enable_tax', '0') == '1';
+        $taxRate = $enableTax ? floatval(Setting::get('tax_rate', '11')) : 0;
+        if ($orderType === 'TAKE_AWAY' && Setting::get('tax_on_takeaway', '1') != '1') {
+            $taxRate = 0;
+        }
+        $taxAmount = round(($subtotalAfterDiscount + $serviceAmount) * ($taxRate / 100), 2);
 
         $paymentMethod = $request->payment_method;
+        $enableSplitPayment = Setting::get('enable_split_payment', '1') == '1';
+        if ($paymentMethod === 'SPLIT' && !$enableSplitPayment) {
+            return back()->with('error', 'Fitur Split Payment sedang dinonaktifkan oleh toko.');
+        }
+
+        $isSplitPayment = ($paymentMethod === 'SPLIT');
+        $paymentDetails = null;
+        $splitCash = 0;
+        $splitNonCash = 0;
+
         $uniqueCode = ($paymentMethod === 'QRIS') ? rand(1, 99) : 0;
         $grandTotal = $subtotalAfterDiscount + $serviceAmount + $taxAmount + $uniqueCode;
+
+        if ($isSplitPayment) {
+            $request->validate([
+                'split_method_1' => 'required|string',
+                'split_amount_1' => 'required|numeric|min:1',
+                'split_method_2' => 'required|string',
+                'split_amount_2' => 'required|numeric|min:1',
+            ]);
+
+            $splitAmt1 = floatval($request->split_amount_1);
+            $splitAmt2 = floatval($request->split_amount_2);
+
+            if (round($splitAmt1 + $splitAmt2, 2) != round($grandTotal, 2)) {
+                return back()->with('error', 'Jumlah pembayaran terpisah (Rp ' . number_format($splitAmt1 + $splitAmt2, 0, ',', '.') . ') harus sama persis dengan total tagihan (Rp ' . number_format($grandTotal, 0, ',', '.') . ')!');
+            }
+
+            $paymentDetails = [
+                ['method' => $request->split_method_1, 'amount' => $splitAmt1],
+                ['method' => $request->split_method_2, 'amount' => $splitAmt2],
+            ];
+
+            if ($request->split_method_1 === 'CASH') $splitCash += $splitAmt1;
+            else $splitNonCash += $splitAmt1;
+
+            if ($request->split_method_2 === 'CASH') $splitCash += $splitAmt2;
+            else $splitNonCash += $splitAmt2;
+        }
+
+        // Cash / Card / Transfer handling
+        $cashRequired = $isSplitPayment ? $splitCash : (($paymentMethod === 'CASH') ? $grandTotal : 0);
+        $cashReceived = ($paymentMethod === 'CASH' || ($isSplitPayment && $splitCash > 0)) ? floatval($request->cash_received ?? $cashRequired) : 0;
         
-        $cashReceived = floatval($request->cash_received ?? $grandTotal);
-        $cashChange = max(0, $cashReceived - $grandTotal);
+        if ($cashRequired > 0 && $cashReceived < $cashRequired) {
+            return back()->with('error', 'Uang tunai yang diterima (Rp ' . number_format($cashReceived, 0, ',', '.') . ') kurang dari bagian tunai tagihan (Rp ' . number_format($cashRequired, 0, ',', '.') . ')!');
+        }
+        $cashChange = ($cashRequired > 0) ? max(0, $cashReceived - $cashRequired) : 0;
+
+        // Member CRM & Loyalty points (1 point per Rp 10.000)
+        $pointsEarned = ($enablePoints && $customerId) ? intval(floor($grandTotal / 10000)) : 0;
 
         $orderId = 'ORD-' . date('ymd') . '-' . strtoupper(substr(uniqid(), -4));
 
-        // 1. Save Order
-        $order = Order::create([
-            'user_id' => Auth::id(),
-            'order_id' => $orderId,
-            'customer_name' => trim($request->customer_name),
-            'order_type' => $orderType,
-            'base_total' => $baseTotal,
-            'discount' => $discountAmount,
-            'discount_percent' => $discountPercent,
-            'coupon_code' => $couponCode,
-            'service' => $serviceAmount,
-            'service_percent' => $servicePercent,
-            'tax' => $taxAmount,
-            'tax_percent' => $taxPercent,
-            'unique_code' => $uniqueCode,
-            'grand_total' => $grandTotal,
-            'cash_received' => ($paymentMethod === 'CASH') ? $cashReceived : 0,
-            'cash_change' => ($paymentMethod === 'CASH') ? $cashChange : 0,
-            'notes' => $request->notes,
-            'status' => ($paymentMethod === 'CASH') ? 'PAID' : 'PENDING',
-            'payment_method' => $paymentMethod,
-            'settlement_type' => ($paymentMethod === 'CASH') ? 'MANUAL_CASHIER' : 'AUTOMATIC_WEBHOOK',
-        ]);
+        // 4. Atomic Execution inside DB Transaction
+        $order = null;
+        $qrisBase64 = null;
 
-        // 2. Save Items & Deduct Stock only if manage_stock is true
-        foreach ($items as $item) {
-            OrderItem::create([
-                'order_id' => $order->id,
-                'product_id' => $item['id'],
-                'product_name' => $item['name'],
-                'qty' => $item['qty'],
-                'price' => $item['price'],
-                'subtotal' => $item['price'] * $item['qty'],
-                'notes' => !empty($item['notes']) ? trim($item['notes']) : null,
-            ]);
+        $isInstantPaid = in_array($paymentMethod, ['CASH', 'TRANSFER', 'DEBIT', 'SPLIT']);
 
-            $product = Product::find($item['id']);
-            if ($product && $product->manage_stock) {
-                $product->stock = max(0, $product->stock - $item['qty']);
-                $product->save();
-            }
-        }
+        try {
+            DB::transaction(function () use (
+                &$order, &$qrisBase64, $request, $orderId, $orderType, $baseTotal,
+                $discountAmount, $discountPercent, $couponCode, $pointsRedeemed, $pointsDiscount,
+                $serviceAmount, $serviceRate, $taxAmount, $taxRate, $uniqueCode, $grandTotal,
+                $cashReceived, $cashChange, $paymentMethod, $isSplitPayment, $paymentDetails,
+                $splitCash, $splitNonCash, $reconstructedItems, $customerId, $pointsEarned, $isInstantPaid
+            ) {
+                // Increment coupon used count inside transaction
+                if ($couponCode) {
+                    Coupon::where('code', $couponCode)->increment('used_count');
+                }
 
-        // 3. Process QRIS flow if QRIS selected
-        if ($paymentMethod === 'QRIS') {
-            $nodeJsUrl = Setting::get('payment_gateway_url', env('PAYMENT_GATEWAY_URL', 'http://localhost:3000/api/v1/qris/generate'));
-            $apiKey = Setting::get('payment_gateway_api_key', env('PAYMENT_GATEWAY_API_KEY', 'secret_key_hp_123'));
-            $expiresInMinutes = (int) Setting::get('qris_expires_minutes', '15');
-
-            try {
-                $response = Http::withHeaders([
-                    'x-api-key' => $apiKey
-                ])->timeout(8)->post($nodeJsUrl, [
-                    'amount' => (int) $grandTotal,
-                    'invoice_id' => (string) $orderId,
-                    'expires_in_minutes' => (int) $expiresInMinutes,
+                // 4a. Create Order
+                $order = Order::create([
+                    'user_id' => Auth::id(),
+                    'customer_id' => $customerId,
+                    'order_id' => $orderId,
+                    'customer_name' => trim($request->customer_name),
+                    'order_type' => $orderType,
+                    'base_total' => $baseTotal,
+                    'discount' => $discountAmount,
+                    'discount_percent' => $discountPercent,
+                    'points_redeemed' => $pointsRedeemed,
+                    'points_discount' => $pointsDiscount,
+                    'points_earned' => $pointsEarned,
+                    'coupon_code' => $couponCode,
+                    'service' => $serviceAmount,
+                    'service_percent' => $serviceRate,
+                    'tax' => $taxAmount,
+                    'tax_percent' => $taxRate,
+                    'unique_code' => $uniqueCode,
+                    'grand_total' => $grandTotal,
+                    'cash_received' => $cashReceived,
+                    'cash_change' => $cashChange,
+                    'notes' => $request->notes,
+                    'status' => $isInstantPaid ? 'PAID' : 'PENDING',
+                    'payment_method' => $paymentMethod,
+                    'is_split_payment' => $isSplitPayment,
+                    'payment_details' => $paymentDetails,
+                    'kitchen_status' => 'PENDING',
+                    'kitchen_updated_at' => now(),
+                    'settlement_type' => $isInstantPaid ? 'MANUAL_CASHIER' : 'AUTOMATIC_WEBHOOK',
                 ]);
 
-                if ($response->successful()) {
-                    $data = $response->json();
-                    $qrisBase64 = $data['data']['qris_base64'] ?? null;
-
-                    return view('pos.checkout', [
-                        'order' => $order,
-                        'qris_image' => $qrisBase64
+                // 4b. Create OrderItems with cost_price & Deduct Stock
+                foreach ($reconstructedItems as $item) {
+                    OrderItem::create([
+                        'order_id' => $order->id,
+                        'product_id' => $item['id'],
+                        'product_name' => $item['name'],
+                        'qty' => $item['qty'],
+                        'price' => $item['price'],
+                        'cost_price' => $item['cost_price'],
+                        'subtotal' => $item['subtotal'],
+                        'notes' => $item['notes'],
                     ]);
-                }
-            } catch (\Exception $e) {
-                return redirect()->route('pos.index')->with('error', 'Layanan QRIS Gateway belum aktif. Anda bisa menggunakan pembayaran Tunai (Cash) sementara.');
-            }
 
-            return redirect()->route('pos.index')->with('error', 'Gagal membuat QRIS dari Gateway. Silakan coba pembayaran Tunai.');
+                    /** @var Product $prod */
+                    $prod = $item['product_model'];
+                    if ($prod->manage_stock) {
+                        $prod->decrement('stock', $item['qty']);
+                    }
+                }
+
+                // 4c. Update Member Points (Deduct redeemed, Add earned if instant paid)
+                if ($customerId && $pointsRedeemed > 0) {
+                    Customer::where('id', $customerId)->decrement('points', $pointsRedeemed);
+                }
+                if ($customerId && $pointsEarned > 0 && $isInstantPaid) {
+                    Customer::where('id', $customerId)->increment('points', $pointsEarned);
+                }
+
+                // 4d. Update Cashier Shift if active and enabled
+                if (Setting::get('enable_shifts', '1') == '1') {
+                    $activeShift = CashShift::where('user_id', Auth::id())->where('status', 'OPEN')->first();
+                    if ($activeShift && $isInstantPaid) {
+                        if ($paymentMethod === 'CASH') {
+                            $activeShift->increment('cash_sales', $grandTotal);
+                        } elseif ($paymentMethod === 'SPLIT') {
+                            if ($splitCash > 0) $activeShift->increment('cash_sales', $splitCash);
+                            if ($splitNonCash > 0) $activeShift->increment('non_cash_sales', $splitNonCash);
+                        } else {
+                            $activeShift->increment('non_cash_sales', $grandTotal);
+                        }
+                    }
+                }
+
+                // 4e. Process QRIS Gateway if QRIS selected (Rollback everything if gateway fails)
+                if ($paymentMethod === 'QRIS') {
+                    $nodeJsUrl = Setting::get('payment_gateway_url', env('PAYMENT_GATEWAY_URL', 'http://localhost:3000/api/v1/qris/generate'));
+                    $apiKey = Setting::get('payment_gateway_api_key', env('PAYMENT_GATEWAY_API_KEY', 'secret_key_hp_123'));
+                    $expiresInMinutes = (int) Setting::get('qris_expires_minutes', '15');
+
+                    try {
+                        $response = Http::withHeaders([
+                            'x-api-key' => $apiKey
+                        ])->timeout(8)->post($nodeJsUrl, [
+                            'amount' => (int) $grandTotal,
+                            'invoice_id' => (string) $orderId,
+                            'expires_in_minutes' => (int) $expiresInMinutes,
+                        ]);
+
+                        if (!$response->successful()) {
+                            throw new \Exception('Layanan QRIS Gateway tidak merespons atau mengembalikan error HTTP ' . $response->status());
+                        }
+
+                        $data = $response->json();
+                        $qrisBase64 = $data['data']['qris_base64'] ?? null;
+                        if (!$qrisBase64) {
+                            throw new \Exception('Respons gambar QRIS tidak valid dari Gateway.');
+                        }
+                    } catch (\Exception $e) {
+                        throw new \Exception('Gagal menghubungi Gateway QRIS: ' . $e->getMessage() . '. Silakan gunakan pembayaran Tunai (Cash) sementara.');
+                    }
+                }
+            });
+        } catch (\Exception $e) {
+            return redirect()->route('pos.index')->with('error', $e->getMessage());
         }
 
-        // Cash flow: 100% direct instant receipt!
-        return redirect()->route('pos.receipt', ['orderId' => $orderId])->with('success', 'Transaksi Tunai Berhasil!');
+        // Return QRIS Waiting Page if QRIS
+        if ($paymentMethod === 'QRIS') {
+            return view('pos.checkout', [
+                'order' => $order,
+                'qris_image' => $qrisBase64
+            ]);
+        }
+
+        // Cash, Transfer, Debit, Split flow: direct instant receipt!
+        $msg = match ($paymentMethod) {
+            'CASH' => 'Transaksi Tunai Berhasil!',
+            'DEBIT' => 'Transaksi Kartu/EDC Berhasil!',
+            'TRANSFER' => 'Transaksi Transfer Bank Berhasil!',
+            'SPLIT' => 'Transaksi Split Payment (Pisah Bayar) Berhasil!',
+            default => 'Transaksi Berhasil!'
+        };
+        return redirect()->route('pos.receipt', ['orderId' => $orderId])->with('success', $msg);
+    }
+
+    public function cancelPendingOrder(Request $request, $orderId)
+    {
+        $order = Order::with('items.product')->where('order_id', $orderId)->firstOrFail();
+
+        if ($order->status !== 'PENDING') {
+            return redirect()->route('pos.index')->with('error', "Pesanan #{$order->order_id} berstatus {$order->status} dan tidak dapat dibatalkan melalui alur ini.");
+        }
+
+        DB::transaction(function () use ($order) {
+            // 1. Restock items that have manage_stock enabled
+            foreach ($order->items as $item) {
+                $product = $item->product ?? Product::find($item->product_id);
+                if ($product && $product->manage_stock) {
+                    $product->increment('stock', $item->qty);
+                }
+            }
+
+            // 2. Rollback coupon count if any
+            if ($order->coupon_code) {
+                $coupon = Coupon::where('code', $order->coupon_code)->first();
+                if ($coupon && $coupon->used_count > 0) {
+                    $coupon->decrement('used_count');
+                }
+            }
+
+            // 3. Rollback redeemed customer points if any
+            if ($order->customer_id && $order->points_redeemed > 0) {
+                Customer::where('id', $order->customer_id)->increment('points', $order->points_redeemed);
+            }
+
+            // 4. Update order status to CANCELLED
+            $order->update([
+                'status' => 'CANCELLED',
+                'notes' => ($order->notes ? $order->notes . ' | ' : '') . 'Dibatalkan oleh Kasir saat menunggu QRIS',
+            ]);
+        });
+
+        return redirect()->route('pos.index')->with('success', "Pesanan QRIS #{$order->order_id} berhasil dibatalkan dan stok produk telah dikembalikan.");
     }
 
     public function manualSettle(Request $request, $orderId)
@@ -233,8 +471,12 @@ class POSController extends Controller
             return redirect()->route('pos.receipt', ['orderId' => $orderId]);
         }
 
+        if ($order->status !== 'PENDING') {
+            return redirect()->route('pos.index')->with('error', "Pesanan #{$orderId} berstatus {$order->status} dan tidak dapat diselesaikan.");
+        }
+
         $request->validate([
-            'payment_proof' => 'nullable|image|max:51200',
+            'payment_proof' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:3072',
             'payment_proof_base64' => 'nullable|string',
             'notes' => 'nullable|string|max:500',
         ]);
@@ -269,6 +511,17 @@ class POSController extends Controller
         }
         $order->save();
 
+        // Award loyalty points if customer attached
+        if ($order->customer_id && $order->points_earned > 0) {
+            Customer::where('id', $order->customer_id)->increment('points', $order->points_earned);
+        }
+
+        // Add non-cash sales to cashier's active shift
+        $activeShift = CashShift::where('user_id', Auth::id())->where('status', 'OPEN')->first();
+        if ($activeShift) {
+            $activeShift->increment('non_cash_sales', $order->grand_total);
+        }
+
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([
                 'status' => 'success',
@@ -297,6 +550,17 @@ class POSController extends Controller
                 $order->status = 'PAID';
                 $order->settlement_type = 'AUTOMATIC_WEBHOOK';
                 $order->save();
+
+                // Award points to member
+                if ($order->customer_id && $order->points_earned > 0) {
+                    Customer::where('id', $order->customer_id)->increment('points', $order->points_earned);
+                }
+
+                // Add to shift
+                $activeShift = CashShift::where('user_id', $order->user_id)->where('status', 'OPEN')->first();
+                if ($activeShift) {
+                    $activeShift->increment('non_cash_sales', $order->grand_total);
+                }
             }
         }
 

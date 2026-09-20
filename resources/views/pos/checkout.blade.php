@@ -72,11 +72,16 @@
 
                 <!-- Manual Refresh & Cancel Actions -->
                 <div class="flex space-x-3 pt-2">
-                    <a href="{{ route('pos.index') }}" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">
-                        Batal / Kembali ke Kasir
-                    </a>
-                    <button onclick="checkManualStatus()" class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition shadow-md shadow-blue-600/30">
-                        Cek Status Sekarang
+                    <form action="{{ route('pos.orders.cancel', $order->order_id) }}" method="POST" class="flex-1" onsubmit="return confirm('Apakah Anda yakin ingin membatalkan transaksi QRIS ini? Stok produk akan otomatis dikembalikan ke inventori.')">
+                        @csrf
+                        <button type="submit" class="w-full py-3 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-xs rounded-xl transition flex items-center justify-center space-x-1.5 shadow-sm">
+                            <i class="fa-solid fa-ban"></i>
+                            <span>Batalkan & Kembalikan Stok</span>
+                        </button>
+                    </form>
+                    <button onclick="checkManualStatus()" class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition shadow-md shadow-blue-600/30 flex items-center justify-center space-x-1.5">
+                        <i class="fa-solid fa-rotate"></i>
+                        <span>Cek Status Sekarang</span>
                     </button>
                 </div>
             </div>

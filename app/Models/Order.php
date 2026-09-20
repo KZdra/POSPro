@@ -11,6 +11,7 @@ class Order extends Model
 
     protected $fillable = [
         'user_id',
+        'customer_id',
         'order_id',
         'customer_name',
         'base_total',
@@ -20,6 +21,9 @@ class Order extends Model
         'cash_change',
         'discount',
         'discount_percent',
+        'points_earned',
+        'points_redeemed',
+        'points_discount',
         'coupon_code',
         'tax',
         'tax_percent',
@@ -31,7 +35,11 @@ class Order extends Model
         'settled_by',
         'status',
         'payment_method',
+        'is_split_payment',
+        'payment_details',
         'order_type',
+        'kitchen_status',
+        'kitchen_updated_at',
         'void_reason',
         'void_by',
         'voided_at',
@@ -45,12 +53,23 @@ class Order extends Model
         'cash_change' => 'decimal:2',
         'discount' => 'decimal:2',
         'discount_percent' => 'decimal:2',
+        'points_earned' => 'integer',
+        'points_redeemed' => 'integer',
+        'points_discount' => 'decimal:2',
+        'is_split_payment' => 'boolean',
+        'payment_details' => 'array',
         'tax' => 'decimal:2',
         'tax_percent' => 'decimal:2',
         'service' => 'decimal:2',
         'service_percent' => 'decimal:2',
+        'kitchen_updated_at' => 'datetime',
         'voided_at' => 'datetime',
     ];
+
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class);
+    }
 
     public function user()
     {
